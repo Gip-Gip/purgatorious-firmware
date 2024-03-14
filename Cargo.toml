@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = [
+    "gui", "i2c", "screw", "shared", "thermo", "urap", "urap-mod",
+    "watchdog",
+]
+
+[workspace.dependencies]
+shared = {version = "0.1.0", path="shared/"}
+urap = {version = "0.1.0", path="urap/"}
+i2c = {version = "0.1.0", path="i2c/"}
+thermo = {version = "0.1.0", path="thermo/"}
+screw = {version = "0.1.0", path="screw/"}
+watchdog = {version = "0.1.0", path="watchdog/"}

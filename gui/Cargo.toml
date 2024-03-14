@@ -1,0 +1,19 @@
+[package]
+name = "gui"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+eframe = "0.26.2"
+egui = "0.26.2"
+urap.workspace = true
+i2c.workspace = true
+shared.workspace = true
+thermo.workspace = true
+screw.workspace = true
+watchdog.workspace = true
+chrono = "0.4.34"
+native-dialog = "0.7.0"
+egui_plot = "0.26.2"
