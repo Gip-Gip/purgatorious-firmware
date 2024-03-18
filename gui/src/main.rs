@@ -202,6 +202,7 @@ impl<'a> eframe::App for MyApp {
             mut t6_c,
             mut t7_c,
             mut ta_c,
+            mut barrel_kpa,
             mut ts1_c,
             mut ts2_c,
             mut ts3_c,
@@ -237,9 +238,10 @@ impl<'a> eframe::App for MyApp {
             0_f32,
             0_f32,
             0_f32,
+            0_f32,
         );
         
-        let temps: [(&mut f32, u16); 8] = [
+        let temps: [(&mut f32, u16); 9] = [
             (&mut t1_c, ADDR_T1_C as u16),
             (&mut t2_c, ADDR_T2_C as u16),
             (&mut t3_c, ADDR_T3_C as u16),
@@ -248,6 +250,7 @@ impl<'a> eframe::App for MyApp {
             (&mut t6_c, ADDR_T6_C as u16),
             (&mut t7_c, ADDR_T7_C as u16),
             (&mut ta_c, ADDR_AMBIENT_C as u16),
+            (&mut barrel_kpa, ADDR_BARREL_KPA as u16),
         ];
         
         let thermo_vars: [(&mut f32, u16); 7] = [
@@ -308,6 +311,7 @@ impl<'a> eframe::App for MyApp {
             t6_c,
             t7_c,
             ta_c,
+            barrel_kpa,
             ts1_c,
             ts2_c,
             ts3_c,
@@ -330,6 +334,7 @@ impl<'a> eframe::App for MyApp {
             t6_c,
             t7_c,
             ta_c,
+            barrel_kpa,
             ts1_c,
             ts2_c,
             ts3_c,
@@ -454,7 +459,7 @@ impl<'a> eframe::App for MyApp {
                         responses.push(response);
                     }
 
-                    // Melt temperature
+                    // Melt temperature and pressure
                     ui.vertical_centered(|ui| {
                         let zmelt_head = RichText::new("Melt Temperature").strong().size(18.0);
                         let zmelt_act_temp = RichText::new(format!("{:03.0}°C", t7_c))
@@ -483,6 +488,12 @@ impl<'a> eframe::App for MyApp {
                                 ));
                                 ui.line(line)
                             });
+
+                        let pres_head_rt = RichText::new("Melt Pressure").strong().size(18.0);
+                        let barrel_pres_rt = RichText::new(format!("{:.0}kPa", barrel_kpa)).color(Color32::WHITE).monospace().size(18.0);
+                        
+                        ui.add(Label::new(pres_head_rt).wrap(true).selectable(false));
+                        ui.add(Label::new(barrel_pres_rt).wrap(true).selectable(false));
                     });
 
                     // Zone interaction logic

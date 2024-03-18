@@ -1664,6 +1664,7 @@ dependencies = [
  "rppal",
  "shared",
  "urap",
+ "watchdog",
 ]
 
 [[package]]

@@ -9,3 +9,4 @@ edition = "2021"
 rppal = "0.17.1"
 shared.workspace = true
 urap.workspace = true
+watchdog.workspace = true

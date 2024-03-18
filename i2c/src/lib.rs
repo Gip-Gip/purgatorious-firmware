@@ -16,3 +16,4 @@ pub const ADDR_TA6_C: usize = 0x000D;
 pub const ADDR_TA7_C: usize = 0x000E;
 
 pub const ADDR_AMBIENT_C: usize = 0x000F;
+pub const ADDR_BARREL_KPA: usize = 0x0010;
