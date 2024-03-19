@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-    "gui", "i2c", "screw", "shared", "thermo", "urap", "urap-mod",
+    "gui", "i2c", "pid-autotune", "screw", "shared", "thermo", "urap", "urap-mod",
     "watchdog",
 ]
 

@@ -28,12 +28,13 @@ const GPIO_SSR_Z2_FAN: u8 = 22;
 const GPIO_SSR_Z3_FAN: u8 = 9;
 const GPIO_SSR_Z4_FAN: u8 = 7;
 
-const URAP_REG_COUNT: usize = 0x22;
+const URAP_REG_COUNT: usize = 0x29;
 
 const URAP_WRITE_PROTECT: [bool; URAP_REG_COUNT] = [
     true, false, false, false, false, false, false, false, false, false, false, false, false,
     false, false, false, false, false, false, false, false, false, false, false, false, false,
-    false, false, false, false, false, false, true, false
+    false, false, false, false, false, false, true, false, false,
+    false, false, false, false, false, false,
 ];
 
 const PWM_PERIOD_MS: u64 = 100 * PWM_PERIOD_MIN_MS;
@@ -363,13 +364,27 @@ fn main() {
                 false => ssr_z4_fan.set_low(),
             }
 
-            // Ensure the outputs are not negative!
-            let pwr_z1 = pid_z1.next_control_output(t1_c).output.max(0.0);
-            let pwr_z2 = pid_z2.next_control_output(t2_c).output.max(0.0);
-            let pwr_z3 = pid_z3.next_control_output(t3_c).output.max(0.0);
-            let pwr_z4 = pid_z4.next_control_output(t4_c).output.max(0.0);
-            let pwr_z5 = pid_z5.next_control_output(t5_c).output.max(0.0);
-            let pwr_z6 = pid_z6.next_control_output(t6_c).output.max(0.0);
+            let (pwr_z1,
+                 pwr_z2,
+                 pwr_z3,
+                 pwr_z4,
+                 pwr_z5,
+                 pwr_z6,
+            ) = if registers_lk[ADDR_ENBL_PWR_OVERRIDE] != [0; URAP_REG_WIDTH] {
+                (f32::from_ne_bytes(registers_lk[ADDR_Z1_PWR]).max(0.0),
+                f32::from_ne_bytes(registers_lk[ADDR_Z2_PWR]).max(0.0),
+                f32::from_ne_bytes(registers_lk[ADDR_Z3_PWR]).max(0.0),
+                f32::from_ne_bytes(registers_lk[ADDR_Z4_PWR]).max(0.0),
+                f32::from_ne_bytes(registers_lk[ADDR_Z5_PWR]).max(0.0),
+                f32::from_ne_bytes(registers_lk[ADDR_Z6_PWR]).max(0.0))
+            } else {
+                (pid_z1.next_control_output(t1_c).output.max(0.0),
+                pid_z2.next_control_output(t2_c).output.max(0.0),
+                pid_z3.next_control_output(t3_c).output.max(0.0),
+                pid_z4.next_control_output(t4_c).output.max(0.0),
+                pid_z5.next_control_output(t5_c).output.max(0.0),
+                pid_z6.next_control_output(t6_c).output.max(0.0))
+            };
 
             let cur_ideal_a = {
                 pwr_z1 * CUR_Z1_A
@@ -384,6 +399,13 @@ fn main() {
             let cur_total_a = cur_ideal_a + motor_line_a.min(0.0);
 
             let cur_multiplier = 1.0_f32.min(CUR_MAX_A / cur_total_a);
+
+            registers_lk[ADDR_Z1_PWR] = pwr_z1.to_ne_bytes();
+            registers_lk[ADDR_Z2_PWR] = pwr_z2.to_ne_bytes();
+            registers_lk[ADDR_Z3_PWR] = pwr_z3.to_ne_bytes();
+            registers_lk[ADDR_Z4_PWR] = pwr_z4.to_ne_bytes();
+            registers_lk[ADDR_Z5_PWR] = pwr_z5.to_ne_bytes();
+            registers_lk[ADDR_Z6_PWR] = pwr_z6.to_ne_bytes();
 
             registers_lk[ADDR_THERMO_PWR_W] = (cur_ideal_a * cur_multiplier * line_v).to_ne_bytes();
 

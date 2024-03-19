@@ -1,0 +1,15 @@
+[package]
+name = "pid-autotune"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+shared.workspace = true
+urap.workspace = true
+i2c.workspace = true
+thermo.workspace = true
+clap = {version = "4.5.3", features = ["derive"] }
+pid = "4.0.0"
+rand = "0.8.5"
