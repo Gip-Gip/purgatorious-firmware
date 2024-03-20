@@ -4,11 +4,13 @@ use std::{f32::consts::PI, thread, time::{Duration, Instant}};
 use clap::{Parser, ValueEnum};
 use pid::Pid;
 
-use rand::{rngs::ThreadRng, thread_rng, Rng, RngCore};
+use rand::{rngs::ThreadRng, thread_rng, Rng};
+use rand_distr::{Normal, Distribution};
 use shared::*;
 use i2c::*;
 use thermo::*;
 use urap::UrapMaster;
+
 
 const PEAK_AMPLITUDE_TOLERANCE: f32 = 0.05;
 
@@ -59,7 +61,7 @@ enum TuningRule {
     SomeOvershoot,
     NoOvershoot,
     Brewing,
-    Custom
+    Flat,
 }
 
 impl Into<(f32, f32, f32)> for TuningRule {
@@ -72,7 +74,7 @@ impl Into<(f32, f32, f32)> for TuningRule {
             TuningRule::SomeOvershoot => (60.0, 40.0, 60.0),
             TuningRule::NoOvershoot => (100.0, 40.0, 60.0),
             TuningRule::Brewing => (2.5, 6.0, 380.0),
-            TuningRule::Custom => (3.4, 4.0, 160.0)
+            TuningRule::Flat => (1.0, 1.0, 1.0),
         }
     }
 }
@@ -331,7 +333,7 @@ fn main() {
 
         match status {
             PIDAutotuneState::Succeeded => {
-                let tuning_rules: [TuningRule; 7] = [
+                let tuning_rules: [TuningRule; 8] = [
                     TuningRule::ZeiglerNichols,
                     TuningRule::TyreusLuyben,
                     TuningRule::CianconeMarlin,
@@ -339,6 +341,7 @@ fn main() {
                     TuningRule::SomeOvershoot,
                     TuningRule::NoOvershoot,
                     TuningRule::Brewing,
+                    TuningRule::Flat,
                 ];
 
                 println!("");
@@ -378,12 +381,26 @@ fn main() {
     ideal_pid.i(ki, 1.0);
     ideal_pid.d(kd, 1.0);
 
-    let mut rng = thread_rng();
+    let rng = Normal::new(1.0, 0.25).unwrap();
+
+    let mut last_score = f64::INFINITY;
 
     loop {
         let mut children: Vec<(f64, Pid<f32>)> = Vec::with_capacity(10);
 
         for _ in 0..10 {
+            urap_thermo.write_f32(addr_pwr, cli.output_step).unwrap();
+
+            loop {
+                let temp_c = urap_i2c.read_f32(addr_temp).unwrap();
+                if temp_c >= cli.setpoint_c + cli.noiseband_c {
+                    break;
+                }
+            
+                print!("\rWarmup @ {:.0}C\t", temp_c);
+                std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
+            }
+
             urap_thermo.write_f32(addr_pwr, 0.0).unwrap();
             loop {
                 let temp_c = urap_i2c.read_f32(addr_temp).unwrap();
@@ -397,27 +414,15 @@ fn main() {
 
             let mut child = ideal_pid;
 
-            let kp = ideal_pid.kp * rand_percent(&mut rng);
-            let ki = ideal_pid.ki * rand_percent(&mut rng);
-            let kd = ideal_pid.kd * rand_percent(&mut rng);
+            let kp = ideal_pid.kp * rng.sample(&mut thread_rng());
+            let ki = ideal_pid.ki * rng.sample(&mut thread_rng());
+            let kd = ideal_pid.kd * rng.sample(&mut thread_rng());
 
             child.p(kp, 1.0);
             child.i(ki, 1.0);
             child.d(kd, 1.0);
 
-            urap_thermo.write_f32(addr_pwr, cli.output_step).unwrap();
-
-            loop {
-                let temp_c = urap_i2c.read_f32(addr_temp).unwrap();
-                if temp_c >= cli.setpoint_c + cli.noiseband_c {
-                    break;
-                }
-            
-                print!("\rWarmup @ {:.0}C\t", temp_c);
-                std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
-            }
-
-            let sample_length_ms = cli.lookback_ms * 2;
+            let sample_length_ms = cli.lookback_ms * 3;
 
             let test_end = Instant::now().checked_add(Duration::from_millis(sample_length_ms)).unwrap();
 
@@ -463,7 +468,9 @@ fn main() {
                 maxima_mean += point as f64 * maxima_weight;
             }
 
-            let score = maxima_mean - minima_mean;
+            maxima_mean = maxima_mean.max(cli.setpoint_c as f64);
+
+            let score = (maxima_mean - minima_mean).powi(2);
 
             println!("\n\nChild of values {:?} produced {} score", child, score);
 
@@ -491,13 +498,17 @@ fn main() {
         ideal_pid.i(ki, 1.0);
         ideal_pid.d(kd, 1.0);
 
-        println!("New Ideal kPID:\nkp={:.3e}\nki={:.3e}\nkd={:.3e}", ideal_pid.kp, ideal_pid.ki, ideal_pid.kd);
-    }
-}
+        if last_score > parent_1_score {
+            println!("New Ideal kPID:\nkp={:.3e}\nki={:.3e}\nkd={:.3e}", ideal_pid.kp, ideal_pid.ki, ideal_pid.kd);
+        }
 
-pub fn rand_percent(rng: &mut ThreadRng) -> f32 {
-    match rng.gen_bool(0.5) {
-        true => 1.0/rng.gen_range(1.0..2.0),
-        false => rng.gen_range(1.0..2.0),
+        // Keep going until we can't acheive a 1% improvement
+        if last_score != f64::INFINITY && (parent_1_score / last_score) >= 0.99 {
+            break;
+        } else {
+            last_score = parent_1_score;
+        }
     }
+
+    println!("\n\nCalibration done!");
 }
