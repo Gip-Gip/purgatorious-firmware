@@ -1,15 +1,15 @@
 //! Provides access to all the i2c peripherals
 
-mod mcp9600;
 mod ads1113;
+mod mcp9600;
 
 use ads1113::{Ads1113, CalState};
 use i2c::*;
-use watchdog::ADDR_ESTOP;
 use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
+use watchdog::ADDR_ESTOP;
 
 use mcp9600::Mcp9600;
 use rppal::{gpio::Gpio, i2c::I2c};
@@ -82,7 +82,9 @@ fn main() {
 
     let mut barrel_cal = CalState::default();
     let mut barrel_pres = Ads1113::new(&mut i2c, I2CADDR_BARREL_PRESSURE, &mut barrel_cal).unwrap();
-    barrel_pres.init().unwrap_or(barrel_pres.init().unwrap_or(barrel_pres.init().unwrap()));
+    barrel_pres
+        .init()
+        .unwrap_or(barrel_pres.init().unwrap_or(barrel_pres.init().unwrap()));
 
     let now = Instant::now();
 
@@ -115,10 +117,18 @@ fn main() {
         .checked_add(Duration::from_millis(POLLRATE_TC_MS + 7 * POLLRATE_TC_MS))
         .unwrap();
 
-    let cal_start = now.checked_add(Duration::from_millis(CAL_START_TIME_MS)).unwrap();
-    let cal_mid = cal_start.checked_add(Duration::from_millis(CAL_TIME_MS)).unwrap();
-    let cal_inter = cal_mid.checked_add(Duration::from_millis(CAL_START_TIME_MS)).unwrap();
-    let cal_end = cal_inter.checked_add(Duration::from_millis(CAL_TIME_MS)).unwrap();
+    let cal_start = now
+        .checked_add(Duration::from_millis(CAL_START_TIME_MS))
+        .unwrap();
+    let cal_mid = cal_start
+        .checked_add(Duration::from_millis(CAL_TIME_MS))
+        .unwrap();
+    let cal_inter = cal_mid
+        .checked_add(Duration::from_millis(CAL_START_TIME_MS))
+        .unwrap();
+    let cal_end = cal_inter
+        .checked_add(Duration::from_millis(CAL_TIME_MS))
+        .unwrap();
 
     let mut t1_c: f32 = 0.0;
     let mut t2_c: f32 = 0.0;
@@ -191,14 +201,21 @@ fn main() {
                 let mut tc = Mcp9600::new(&mut i2c, addr).unwrap();
                 (*temp_c, *tamb_c) = match tc.get_temp_c() {
                     Ok(val) => {
-                        *poll = now.checked_add(Duration::from_millis(POLLRATE_TC_MS)).unwrap();
+                        *poll = now
+                            .checked_add(Duration::from_millis(POLLRATE_TC_MS))
+                            .unwrap();
 
                         val
                     }
                     Err(_) => {
-                        if now.saturating_duration_since(*poll) >= Duration::from_millis(TC_TIMEOUT_MS) {
+                        if now.saturating_duration_since(*poll)
+                            >= Duration::from_millis(TC_TIMEOUT_MS)
+                        {
                             if urap_watchdog.read_u32(ADDR_ESTOP).unwrap_or(1) == 0 {
-                                println!("**FAULT** Timeout on communicating with Mcp9600 at address {}", addr);
+                                println!(
+                                    "**FAULT** Timeout on communicating with Mcp9600 at address {}",
+                                    addr
+                                );
                             }
                             urap_watchdog.write_u32(ADDR_ESTOP, 1).unwrap();
                         }
@@ -210,43 +227,59 @@ fn main() {
 
             if *temp_c >= MAX_TEMP_C {
                 if urap_watchdog.read_u32(ADDR_ESTOP).unwrap_or(1) == 0 {
-                    println!("**FAULT** Overtemp of {} read from Mcp9600 at address {}", *temp_c, addr);
+                    println!(
+                        "**FAULT** Overtemp of {} read from Mcp9600 at address {}",
+                        *temp_c, addr
+                    );
                 }
                 urap_watchdog.write_u32(ADDR_ESTOP, 1).unwrap();
             }
         }
-        
+
         if poll_barrel_pres.saturating_duration_since(now) == Duration::ZERO {
-            let mut barrel_pres = Ads1113::new(&mut i2c, I2CADDR_BARREL_PRESSURE, &mut barrel_cal).unwrap();
+            let mut barrel_pres =
+                Ads1113::new(&mut i2c, I2CADDR_BARREL_PRESSURE, &mut barrel_cal).unwrap();
 
-            if cal_start.saturating_duration_since(now) == Duration::ZERO && cal_mid.saturating_duration_since(now) != Duration::ZERO {
-                barrel_kpa = barrel_pres.push_calibration_low_sample().unwrap_or(barrel_pres.push_calibration_low_sample().unwrap_or(barrel_pres.push_calibration_low_sample().unwrap()));
-                
+            if cal_start.saturating_duration_since(now) == Duration::ZERO
+                && cal_mid.saturating_duration_since(now) != Duration::ZERO
+            {
+                barrel_kpa = barrel_pres.push_calibration_low_sample().unwrap_or(
+                    barrel_pres
+                        .push_calibration_low_sample()
+                        .unwrap_or(barrel_pres.push_calibration_low_sample().unwrap()),
+                );
+
                 // Keep estop active while calibrating
                 urap_watchdog.write_u32(ADDR_ESTOP, 1).unwrap_or_default();
-            }
-
-            else if cal_mid.saturating_duration_since(now) == Duration::ZERO && cal_inter.saturating_duration_since(now) != Duration::ZERO {
+            } else if cal_mid.saturating_duration_since(now) == Duration::ZERO
+                && cal_inter.saturating_duration_since(now) != Duration::ZERO
+            {
                 cal_relay.set_high();
-            }
+            } else if cal_inter.saturating_duration_since(now) == Duration::ZERO
+                && cal_end.saturating_duration_since(now) != Duration::ZERO
+            {
+                barrel_kpa = barrel_pres.push_calibration_high_sample().unwrap_or(
+                    barrel_pres
+                        .push_calibration_high_sample()
+                        .unwrap_or(barrel_pres.push_calibration_high_sample().unwrap()),
+                );
 
-            else if cal_inter.saturating_duration_since(now) == Duration::ZERO && cal_end.saturating_duration_since(now) != Duration::ZERO {
-                barrel_kpa = barrel_pres.push_calibration_high_sample().unwrap_or(barrel_pres.push_calibration_high_sample().unwrap_or(barrel_pres.push_calibration_high_sample().unwrap()));
-                
                 // Keep estop active while calibrating
                 urap_watchdog.write_u32(ADDR_ESTOP, 1).unwrap_or_default();
-            }
-
-            else if cal_end.saturating_duration_since(now) == Duration::ZERO {
+            } else if cal_end.saturating_duration_since(now) == Duration::ZERO {
                 cal_relay.set_low();
-                barrel_kpa = barrel_pres.get_pressure_kpa().unwrap_or(barrel_pres.get_pressure_kpa().unwrap_or(barrel_pres.get_pressure_kpa().unwrap()));
+                barrel_kpa = barrel_pres.get_pressure_kpa().unwrap_or(
+                    barrel_pres
+                        .get_pressure_kpa()
+                        .unwrap_or(barrel_pres.get_pressure_kpa().unwrap()),
+                );
 
                 // Sound estop if we're at the safety limit
                 if barrel_pres.is_at_safety_limit(barrel_kpa) {
                     urap_watchdog.write_u32(ADDR_ESTOP, 1).unwrap_or_default();
                 }
             }
-            
+
             poll_barrel_pres = now
                 .checked_add(Duration::from_millis(POLLRATE_TC_MS))
                 .unwrap();

@@ -1,16 +1,18 @@
 //! Derived from https://github.com/hirschmann/pid-autotune/blob/master/autotune.py
 
-use std::{f32::consts::PI, thread, time::{Duration, Instant}};
 use clap::{Parser, ValueEnum};
 use pid::Pid;
+use std::{
+    f32::consts::PI,
+    time::{Duration, Instant},
+};
 
-use rand::{rngs::ThreadRng, thread_rng, Rng};
-use rand_distr::{Normal, Distribution};
-use shared::*;
 use i2c::*;
+use rand::thread_rng;
+use rand_distr::{Distribution, Normal};
+use shared::*;
 use thermo::*;
 use urap::UrapMaster;
-
 
 const PEAK_AMPLITUDE_TOLERANCE: f32 = 0.05;
 
@@ -95,7 +97,7 @@ struct PIDAutotuner {
     peaks: Vec<(Instant, f32)>,
     output: f32,
     last_run_timestamp: Instant,
-    peak_type:  PeakType,
+    peak_type: PeakType,
     peak_count: u32,
     initial_output: f32,
     induced_amplitude: f32,
@@ -106,15 +108,15 @@ struct PIDAutotuner {
 impl PIDAutotuner {
     pub fn new(
         setpoint: f32,
-        output_step: f32, 
+        output_step: f32,
         sample_time_ms: u64,
         lookback_ms: u64,
         out_min: f32,
         out_max: f32,
         noiseband: f32,
     ) -> Self {
-
-        let (inputs, peaks, output, peak_count, initial_output, induced_amplitude, ku, pu_ms) = Default::default();
+        let (inputs, peaks, output, peak_count, initial_output, induced_amplitude, ku, pu_ms) =
+            Default::default();
 
         Self {
             setpoint,
@@ -134,7 +136,7 @@ impl PIDAutotuner {
             initial_output,
             induced_amplitude,
             ku,
-            pu_ms
+            pu_ms,
         }
     }
 
@@ -142,7 +144,7 @@ impl PIDAutotuner {
     pub fn get_state(&self) -> PIDAutotuneState {
         self.state
     }
-    
+
     #[inline]
     pub fn get_output(&self) -> f32 {
         self.output
@@ -151,34 +153,40 @@ impl PIDAutotuner {
     pub fn run(&mut self, input_val: f32) -> PIDAutotuneState {
         let now = Instant::now();
 
-        let next_sample = self.last_run_timestamp.checked_add(Duration::from_millis(self.sample_time_ms)).unwrap();
+        let next_sample = self
+            .last_run_timestamp
+            .checked_add(Duration::from_millis(self.sample_time_ms))
+            .unwrap();
 
         if !next_sample.saturating_duration_since(now).is_zero() {
-            return self.get_state()
+            return self.get_state();
         }
 
         self.last_run_timestamp = now;
 
-        if self.state == PIDAutotuneState::RelayStepUp
-            && input_val > self.setpoint + self.noiseband {
+        if self.state == PIDAutotuneState::RelayStepUp && input_val > self.setpoint + self.noiseband
+        {
             self.state = PIDAutotuneState::RelayStepDown;
         } else if self.state == PIDAutotuneState::RelayStepDown
-            && input_val < self.setpoint - self.noiseband {
+            && input_val < self.setpoint - self.noiseband
+        {
             self.state = PIDAutotuneState::RelayStepUp;
         }
 
         self.output = match self.state {
             PIDAutotuneState::RelayStepUp => self.initial_output + self.output_step,
             PIDAutotuneState::RelayStepDown => self.initial_output - self.output_step,
-            _ => {return self.get_state();}
+            _ => {
+                return self.get_state();
+            }
         };
 
         self.output = self.out_min.max(self.out_max.min(self.output));
- 
+
         self.inputs.push(input_val);
 
-        if self.inputs.len() != (self.lookback_ms/self.sample_time_ms) as usize {
-            return self.get_state()
+        if self.inputs.len() != (self.lookback_ms / self.sample_time_ms) as usize {
+            return self.get_state();
         }
 
         self.inputs.remove(0);
@@ -218,7 +226,7 @@ impl PIDAutotuner {
             for i in 0..self.peaks.len() - 2 {
                 let (_, peak1) = self.peaks[i];
                 let (_, peak2) = self.peaks[i + 1];
-                
+
                 self.induced_amplitude += (peak1 - peak2).abs();
 
                 abs_max = peak1.max(abs_max);
@@ -227,7 +235,8 @@ impl PIDAutotuner {
 
             self.induced_amplitude /= 6.0;
 
-            let amplitude_dev = (0.5 * (abs_max - abs_min) - self.induced_amplitude) / self.induced_amplitude;
+            let amplitude_dev =
+                (0.5 * (abs_max - abs_min) - self.induced_amplitude) / self.induced_amplitude;
 
             if amplitude_dev < PEAK_AMPLITUDE_TOLERANCE {
                 self.state = PIDAutotuneState::Succeeded;
@@ -254,7 +263,7 @@ impl PIDAutotuner {
 
             self.pu_ms = 0.5 * (period1.as_millis() as f32 + period2.as_millis() as f32);
         }
-        
+
         self.get_state()
     }
 
@@ -318,53 +327,60 @@ fn main() {
         cli.lookback_ms,
         0.0,
         1.0,
-        cli.noiseband_c);
+        cli.noiseband_c,
+    );
 
     let (addr_temp, addr_pwr): (u16, u16) = cli.zone.into();
 
     // Disable any internal PID control in thermo
-    urap_thermo.write_u32(ADDR_ENBL_PWR_OVERRIDE as u16, 1).unwrap();
+    urap_thermo
+        .write_u32(ADDR_ENBL_PWR_OVERRIDE as u16, 1)
+        .unwrap();
 
-    if cli.p.is_none() { loop {
-        let temp_c = urap_i2c.read_f32(addr_temp).unwrap();
+    if cli.p.is_none() {
+        loop {
+            let temp_c = urap_i2c.read_f32(addr_temp).unwrap();
 
-        let status = autotuner.run(temp_c);
-        let power = autotuner.get_output();
+            let status = autotuner.run(temp_c);
+            let power = autotuner.get_output();
 
-        print!("\r{:?} @ {:.0}C & {}pwr", status, temp_c, power);
+            print!("\r{:?} @ {:.0}C & {}pwr", status, temp_c, power);
 
-        urap_thermo.write_f32(addr_pwr, power).unwrap();
+            urap_thermo.write_f32(addr_pwr, power).unwrap();
 
-        match status {
-            PIDAutotuneState::Succeeded => {
-                let tuning_rules: [TuningRule; 9] = [
-                    TuningRule::ZeiglerNichols,
-                    TuningRule::TyreusLuyben,
-                    TuningRule::CianconeMarlin,
-                    TuningRule::PessenIntergral,
-                    TuningRule::SomeOvershoot,
-                    TuningRule::NoOvershoot,
-                    TuningRule::Brewing,
-                    TuningRule::HighMass,
-                    TuningRule::Flat,
-                ];
+            match status {
+                PIDAutotuneState::Succeeded => {
+                    let tuning_rules: [TuningRule; 9] = [
+                        TuningRule::ZeiglerNichols,
+                        TuningRule::TyreusLuyben,
+                        TuningRule::CianconeMarlin,
+                        TuningRule::PessenIntergral,
+                        TuningRule::SomeOvershoot,
+                        TuningRule::NoOvershoot,
+                        TuningRule::Brewing,
+                        TuningRule::HighMass,
+                        TuningRule::Flat,
+                    ];
 
-                println!("");
+                    println!("");
 
-                for tuning_rule in tuning_rules {
-                    let (kp, ki, kd) = autotuner.get_kpid(tuning_rule);
+                    for tuning_rule in tuning_rules {
+                        let (kp, ki, kd) = autotuner.get_kpid(tuning_rule);
 
-                    println!("{:?}: kp={:e}, ki={:e}, kd={:e}", tuning_rule, kp, ki, kd);
+                        println!("{:?}: kp={:e}, ki={:e}, kd={:e}", tuning_rule, kp, ki, kd);
+                    }
+                    break;
                 }
-                break;
+
+                PIDAutotuneState::Failed => {
+                    return;
+                }
+
+                _ => {}
             }
-
-            PIDAutotuneState::Failed => {return;}
-
-            _ => {}
+            std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
         }
-        std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
-    }}
+    }
 
     let choice = TuningRule::HighMass;
 
@@ -387,94 +403,100 @@ fn main() {
     ideal_pid.d(kd, 1.0);
 
     if cli.test {
-            urap_thermo.write_f32(addr_pwr, cli.output_step).unwrap();
+        urap_thermo.write_f32(addr_pwr, cli.output_step).unwrap();
 
-            loop {
-                let temp_c = urap_i2c.read_f32(addr_temp).unwrap();
-                if temp_c >= cli.setpoint_c + cli.noiseband_c {
-                    break;
-                }
-            
-                print!("\rWarmup @ {:.0}C\t", temp_c);
-                std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
+        loop {
+            let temp_c = urap_i2c.read_f32(addr_temp).unwrap();
+            if temp_c >= cli.setpoint_c + cli.noiseband_c {
+                break;
             }
 
-            urap_thermo.write_f32(addr_pwr, 0.0).unwrap();
-            loop {
-                let temp_c = urap_i2c.read_f32(addr_temp).unwrap();
-                if temp_c <= cli.setpoint_c - 10.0 {
-                    break;
-                }
-                
-                print!("\rCooldown @ {:.0}C\t", temp_c);
-                std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
+            print!("\rWarmup @ {:.0}C\t", temp_c);
+            std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
+        }
+
+        urap_thermo.write_f32(addr_pwr, 0.0).unwrap();
+        loop {
+            let temp_c = urap_i2c.read_f32(addr_temp).unwrap();
+            if temp_c <= cli.setpoint_c - 10.0 {
+                break;
             }
 
-            let sample_length_ms = cli.lookback_ms * 3;
+            print!("\rCooldown @ {:.0}C\t", temp_c);
+            std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
+        }
 
-            let test_end = Instant::now().checked_add(Duration::from_millis(sample_length_ms)).unwrap();
+        let sample_length_ms = cli.lookback_ms * 3;
 
-            let mut points: Vec<f32> = Vec::with_capacity((sample_length_ms / cli.sample_time_ms) as usize);
+        let test_end = Instant::now()
+            .checked_add(Duration::from_millis(sample_length_ms))
+            .unwrap();
 
-            loop {
-                let temp_c = urap_i2c.read_f32(addr_temp).unwrap();
-                let pwr = ideal_pid.next_control_output(temp_c).output;
+        let mut points: Vec<f32> =
+            Vec::with_capacity((sample_length_ms / cli.sample_time_ms) as usize);
 
-                urap_thermo.write_f32(addr_pwr, pwr).unwrap();
+        loop {
+            let temp_c = urap_i2c.read_f32(addr_temp).unwrap();
+            let pwr = ideal_pid.next_control_output(temp_c).output;
 
-                points.push(temp_c);
+            urap_thermo.write_f32(addr_pwr, pwr).unwrap();
 
-                if test_end.saturating_duration_since(Instant::now()).is_zero() {
-                    break;
-                }
-                
-                print!("\rCollecting Points @ {:.0}C\t", temp_c);
-                std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
+            points.push(temp_c);
+
+            if test_end.saturating_duration_since(Instant::now()).is_zero() {
+                break;
             }
 
-            let mut minima_points: Vec<f32> = Vec::with_capacity(points.capacity());
-            let mut maxima_points: Vec<f32> = Vec::with_capacity(points.capacity());
+            print!("\rCollecting Points @ {:.0}C\t", temp_c);
+            std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
+        }
 
-            for point in points {
-                if point < cli.setpoint_c {
-                    minima_points.push(point);
-                } else {
-                    maxima_points.push(point);
-                }
+        let mut minima_points: Vec<f32> = Vec::with_capacity(points.capacity());
+        let mut maxima_points: Vec<f32> = Vec::with_capacity(points.capacity());
+
+        for point in points {
+            if point < cli.setpoint_c {
+                minima_points.push(point);
+            } else {
+                maxima_points.push(point);
             }
+        }
 
-            while minima_points.len() < maxima_points.len() {
-                minima_points.push(cli.setpoint_c);
-            }
-            
-            while maxima_points.len() < minima_points.len() {
-                maxima_points.push(cli.setpoint_c);
-            }
+        while minima_points.len() < maxima_points.len() {
+            minima_points.push(cli.setpoint_c);
+        }
 
-            let mut minima_mean: f64 = 0.0;
-            let mut maxima_mean: f64 = 0.0;
-            let minima_weight: f64 = 1.0/minima_points.len() as f64;
-            let maxima_weight: f64 = 1.0/maxima_points.len() as f64;
+        while maxima_points.len() < minima_points.len() {
+            maxima_points.push(cli.setpoint_c);
+        }
 
-            for point in minima_points {
-                minima_mean += point as f64 * minima_weight;
-            }
+        let mut minima_mean: f64 = 0.0;
+        let mut maxima_mean: f64 = 0.0;
+        let minima_weight: f64 = 1.0 / minima_points.len() as f64;
+        let maxima_weight: f64 = 1.0 / maxima_points.len() as f64;
 
-            for point in maxima_points {
-                maxima_mean += point as f64 * maxima_weight;
-            }
+        for point in minima_points {
+            minima_mean += point as f64 * minima_weight;
+        }
 
-            let score = (maxima_mean - minima_mean).powi(2);
+        for point in maxima_points {
+            maxima_mean += point as f64 * maxima_weight;
+        }
 
-            let kp = ideal_pid.kp;
-            let ki = ideal_pid.ki;
-            let kd = ideal_pid.kd;
+        let score = (maxima_mean - minima_mean).powi(2);
 
-            println!("\n\nPID of values kp={:.3e}, ki={:.3e}, & kd={:.3e} produced {} score", kp, ki, kd, score);
-            
-            urap_thermo.write_f32(addr_pwr, 0.0).unwrap();
+        let kp = ideal_pid.kp;
+        let ki = ideal_pid.ki;
+        let kd = ideal_pid.kd;
 
-            return;
+        println!(
+            "\n\nPID of values kp={:.3e}, ki={:.3e}, & kd={:.3e} produced {} score",
+            kp, ki, kd, score
+        );
+
+        urap_thermo.write_f32(addr_pwr, 0.0).unwrap();
+
+        return;
     }
 
     let rng = Normal::new(1.0, 0.25).unwrap();
@@ -492,7 +514,7 @@ fn main() {
                 if temp_c >= cli.setpoint_c + cli.noiseband_c {
                     break;
                 }
-            
+
                 print!("\rWarmup @ {:.0}C\t", temp_c);
                 std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
             }
@@ -503,7 +525,7 @@ fn main() {
                 if temp_c <= cli.setpoint_c - 10.0 {
                     break;
                 }
-                
+
                 print!("\rCooldown @ {:.0}C\t", temp_c);
                 std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
             }
@@ -520,9 +542,12 @@ fn main() {
 
             let sample_length_ms = cli.lookback_ms * 3;
 
-            let test_end = Instant::now().checked_add(Duration::from_millis(sample_length_ms)).unwrap();
+            let test_end = Instant::now()
+                .checked_add(Duration::from_millis(sample_length_ms))
+                .unwrap();
 
-            let mut points: Vec<f32> = Vec::with_capacity((sample_length_ms / cli.sample_time_ms) as usize);
+            let mut points: Vec<f32> =
+                Vec::with_capacity((sample_length_ms / cli.sample_time_ms) as usize);
 
             loop {
                 let temp_c = urap_i2c.read_f32(addr_temp).unwrap();
@@ -535,7 +560,7 @@ fn main() {
                 if test_end.saturating_duration_since(Instant::now()).is_zero() {
                     break;
                 }
-                
+
                 print!("\rCollecting Points @ {:.0}C\t", temp_c);
                 std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
             }
@@ -554,15 +579,15 @@ fn main() {
             while minima_points.len() < maxima_points.len() {
                 minima_points.push(cli.setpoint_c);
             }
-            
+
             while maxima_points.len() < minima_points.len() {
                 maxima_points.push(cli.setpoint_c);
             }
 
             let mut minima_mean: f64 = 0.0;
             let mut maxima_mean: f64 = 0.0;
-            let minima_weight: f64 = 1.0/minima_points.len() as f64;
-            let maxima_weight: f64 = 1.0/maxima_points.len() as f64;
+            let minima_weight: f64 = 1.0 / minima_points.len() as f64;
+            let maxima_weight: f64 = 1.0 / maxima_points.len() as f64;
 
             for point in minima_points {
                 minima_mean += point as f64 * minima_weight;
@@ -573,12 +598,15 @@ fn main() {
             }
 
             let score = (maxima_mean - minima_mean).powi(2);
-            
+
             let kp = child.kp;
             let ki = child.ki;
             let kd = child.kd;
 
-            println!("\n\nChild of values kp={:.3e}, ki={:.3e}, & kd={:.3e} produced {} score", kp, ki, kd, score);
+            println!(
+                "\n\nChild of values kp={:.3e}, ki={:.3e}, & kd={:.3e} produced {} score",
+                kp, ki, kd, score
+            );
 
             children.push((score, child));
         }
@@ -593,8 +621,10 @@ fn main() {
         let (parent_1_score, parent_1_pid) = children[0];
         let (parent_2_score, parent_2_pid) = children[1];
 
-
-        println!("Parent 1 score: {}, Parent 2 score: {}", parent_1_score, parent_2_score);
+        println!(
+            "Parent 1 score: {}, Parent 2 score: {}",
+            parent_1_score, parent_2_score
+        );
 
         let kp = (parent_1_pid.kp + parent_2_pid.kp) * 0.5;
         let ki = (parent_1_pid.ki + parent_2_pid.ki) * 0.5;
@@ -605,7 +635,10 @@ fn main() {
         ideal_pid.d(kd, 1.0);
 
         if last_score > parent_1_score {
-            println!("New Ideal kPID:\nkp={:.3e}\nki={:.3e}\nkd={:.3e}", ideal_pid.kp, ideal_pid.ki, ideal_pid.kd);
+            println!(
+                "New Ideal kPID:\nkp={:.3e}\nki={:.3e}\nkd={:.3e}",
+                ideal_pid.kp, ideal_pid.ki, ideal_pid.kd
+            );
         }
 
         // Keep going until we can't acheive a 1% improvement
@@ -617,6 +650,6 @@ fn main() {
     }
 
     println!("\n\nCalibration done!");
-    
+
     urap_thermo.write_f32(addr_pwr, 0.0).unwrap();
 }

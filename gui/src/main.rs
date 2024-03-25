@@ -1,7 +1,6 @@
 use chrono::{DateTime, Local};
 use egui::{Button, Color32, Id, InnerResponse, Label, Response, RichText, Sense};
 use i2c::*;
-use watchdog::ADDR_ESTOP;
 use std::{
     collections::LinkedList,
     path::Path,
@@ -11,6 +10,7 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 use thermo::*;
+use watchdog::ADDR_ESTOP;
 
 use egui_plot::{Line, Plot, PlotBounds, PlotPoints};
 
@@ -215,32 +215,12 @@ impl<'a> eframe::App for MyApp {
             mut act_motor_rpm,
             mut motor_a,
             mut motor_v,
-            mut line_v
+            mut line_v,
         ) = (
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
-            0_f32,
+            0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32,
+            0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32,
         );
-        
+
         let temps: [(&mut f32, u16); 9] = [
             (&mut t1_c, ADDR_T1_C as u16),
             (&mut t2_c, ADDR_T2_C as u16),
@@ -252,7 +232,7 @@ impl<'a> eframe::App for MyApp {
             (&mut ta_c, ADDR_AMBIENT_C as u16),
             (&mut barrel_kpa, ADDR_BARREL_KPA as u16),
         ];
-        
+
         let thermo_vars: [(&mut f32, u16); 7] = [
             (&mut ts1_c, ADDR_SET_Z1_C as u16),
             (&mut ts2_c, ADDR_SET_Z2_C as u16),
@@ -269,24 +249,28 @@ impl<'a> eframe::App for MyApp {
             (&mut act_motor_rpm, ADDR_ACT_MOTOR_RPM as u16),
             (&mut motor_a, ADDR_MOTOR_A as u16),
             (&mut motor_v, ADDR_MOTOR_V as u16),
-            (&mut line_v, ADDR_LINE_V as u16)
+            (&mut line_v, ADDR_LINE_V as u16),
         ];
-        
+
         for (temp, addr) in temps {
             *temp = match self.urap_i2c.read_f32(addr) {
                 Ok(val) => val,
                 Err(_) => {
-                    self.urap_watchdog.write_u32(ADDR_ESTOP, 1).unwrap_or_default();
+                    self.urap_watchdog
+                        .write_u32(ADDR_ESTOP, 1)
+                        .unwrap_or_default();
                     break;
                 }
             };
         }
-        
+
         for (motor_stat, addr) in motor_stats {
             *motor_stat = match self.urap_screw.read_f32(addr) {
                 Ok(val) => val,
                 Err(_) => {
-                    self.urap_watchdog.write_u32(ADDR_ESTOP, 1).unwrap_or_default();
+                    self.urap_watchdog
+                        .write_u32(ADDR_ESTOP, 1)
+                        .unwrap_or_default();
                     break;
                 }
             };
@@ -296,7 +280,9 @@ impl<'a> eframe::App for MyApp {
             *thermo_var = match self.urap_thermo.read_f32(addr) {
                 Ok(val) => val,
                 Err(_) => {
-                    self.urap_watchdog.write_u32(ADDR_ESTOP, 1).unwrap_or_default();
+                    self.urap_watchdog
+                        .write_u32(ADDR_ESTOP, 1)
+                        .unwrap_or_default();
                     break;
                 }
             };
@@ -324,7 +310,7 @@ impl<'a> eframe::App for MyApp {
             act_motor_rpm,
             motor_a,
             motor_v,
-            line_v
+            line_v,
         ) = (
             t1_c,
             t2_c,
@@ -347,7 +333,7 @@ impl<'a> eframe::App for MyApp {
             act_motor_rpm,
             motor_a,
             motor_v,
-            line_v
+            line_v,
         );
 
         // True if not zero
@@ -490,8 +476,11 @@ impl<'a> eframe::App for MyApp {
                             });
 
                         let pres_head_rt = RichText::new("Melt Pressure").strong().size(18.0);
-                        let barrel_pres_rt = RichText::new(format!("{:.0}kPa", barrel_kpa)).color(Color32::WHITE).monospace().size(18.0);
-                        
+                        let barrel_pres_rt = RichText::new(format!("{:.0}kPa", barrel_kpa))
+                            .color(Color32::WHITE)
+                            .monospace()
+                            .size(18.0);
+
                         ui.add(Label::new(pres_head_rt).wrap(true).selectable(false));
                         ui.add(Label::new(barrel_pres_rt).wrap(true).selectable(false));
                     });
@@ -576,7 +565,10 @@ impl<'a> eframe::App for MyApp {
                             self.keypad = true;
                         }
                     } else {
-                        let drive_disabled_rt = RichText::new("DRIVE DISABLED").strong().size(18.0).color(Color32::RED);
+                        let drive_disabled_rt = RichText::new("DRIVE DISABLED")
+                            .strong()
+                            .size(18.0)
+                            .color(Color32::RED);
 
                         ui.add(Label::new(drive_disabled_rt).wrap(true).selectable(false));
                     }
@@ -585,14 +577,19 @@ impl<'a> eframe::App for MyApp {
                 ui.separator();
 
                 if self.urap_watchdog.read_u32(ADDR_ESTOP).unwrap_or(1) != 0 {
-                    let estop_rt = RichText::new("ESTOP ACTIVE").size(18.0).color(Color32::WHITE).strong();
+                    let estop_rt = RichText::new("ESTOP ACTIVE")
+                        .size(18.0)
+                        .color(Color32::WHITE)
+                        .strong();
 
                     let estop_button = Button::new(estop_rt).fill(Color32::RED);
 
                     if ui.add(estop_button).clicked() {
                         // Write 0 to clear estop
-                        self.urap_watchdog.write_u32(ADDR_ESTOP, 0).unwrap_or_default();
-            
+                        self.urap_watchdog
+                            .write_u32(ADDR_ESTOP, 0)
+                            .unwrap_or_default();
+
                         let urap_i2c = UrapMaster::new(URAP_I2C_PATH);
                         let urap_thermo = UrapMaster::new(URAP_THERMO_PATH);
                         let urap_screw = UrapMaster::new(URAP_SCREW_PATH);

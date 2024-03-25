@@ -107,7 +107,7 @@ impl UrapMaster {
     pub fn write_f32(&mut self, register: u16, data: f32) -> Result<(), std::io::Error> {
         self.write_4u8(register, data.to_ne_bytes())
     }
-    
+
     #[inline]
     pub fn write_u32(&mut self, register: u16, data: u32) -> Result<(), std::io::Error> {
         self.write_4u8(register, data.to_ne_bytes())

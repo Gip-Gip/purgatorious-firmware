@@ -1,12 +1,12 @@
 //! Temperature PID controller for all the heater zones
 
-use watchdog::ADDR_ESTOP;
 use std::{
     path::Path,
     sync::{Arc, Mutex},
     thread::sleep,
     time::{Duration, Instant},
 };
+use watchdog::ADDR_ESTOP;
 
 use i2c::*;
 use pid::Pid;
@@ -33,8 +33,8 @@ const URAP_REG_COUNT: usize = 0x29;
 const URAP_WRITE_PROTECT: [bool; URAP_REG_COUNT] = [
     true, false, false, false, false, false, false, false, false, false, false, false, false,
     false, false, false, false, false, false, false, false, false, false, false, false, false,
-    false, false, false, false, false, false, true, false, false,
-    false, false, false, false, false, false,
+    false, false, false, false, false, false, true, false, false, false, false, false, false,
+    false, false,
 ];
 
 const PWM_PERIOD_MS: u64 = 100 * PWM_PERIOD_MIN_MS;
@@ -74,33 +74,39 @@ impl LinearEquation {
 //      = 0.125 - 1.630e-3 * 123
 //      = 5.815217e-2
 //
-// I = 
+// I =
 
 static LINEAR_P: [LinearEquation; 6] = [
-    LinearEquation{ a: 0.0, b: 0.0 },
-    LinearEquation{ a: 0.0, b: 0.0 },
-    LinearEquation{ a: 5.434782e-4, b: 5.815217e-2 },
-    LinearEquation{ a: 5.434782e-4, b: 5.815217e-2 },
-    LinearEquation{ a: 0.0, b: 0.0 },
-    LinearEquation{ a: 0.0, b: 0.0 },
+    LinearEquation { a: 0.0, b: 0.0 },
+    LinearEquation { a: 0.0, b: 0.0 },
+    LinearEquation {
+        a: 5.434782e-4,
+        b: 5.815217e-2,
+    },
+    LinearEquation {
+        a: 5.434782e-4,
+        b: 5.815217e-2,
+    },
+    LinearEquation { a: 0.0, b: 0.0 },
+    LinearEquation { a: 0.0, b: 0.0 },
 ];
 
 static LINEAR_I: [LinearEquation; 6] = [
-    LinearEquation{ a: 0.0, b: 0.0 },
-    LinearEquation{ a: 0.0, b: 0.0 },
-    LinearEquation{ a: 0.0, b: 0.0 },
-    LinearEquation{ a: 0.0, b: 0.0 },
-    LinearEquation{ a: 0.0, b: 0.0 },
-    LinearEquation{ a: 0.0, b: 0.0 },
+    LinearEquation { a: 0.0, b: 0.0 },
+    LinearEquation { a: 0.0, b: 0.0 },
+    LinearEquation { a: 0.0, b: 0.0 },
+    LinearEquation { a: 0.0, b: 0.0 },
+    LinearEquation { a: 0.0, b: 0.0 },
+    LinearEquation { a: 0.0, b: 0.0 },
 ];
 
 static LINEAR_D: [LinearEquation; 6] = [
-    LinearEquation{ a: 0.0, b: 0.0 },
-    LinearEquation{ a: 0.0, b: 0.0 },
-    LinearEquation{ a: 0.0, b: 0.0 },
-    LinearEquation{ a: 0.0, b: 0.0 },
-    LinearEquation{ a: 0.0, b: 0.0 },
-    LinearEquation{ a: 0.0, b: 0.0 },
+    LinearEquation { a: 0.0, b: 0.0 },
+    LinearEquation { a: 0.0, b: 0.0 },
+    LinearEquation { a: 0.0, b: 0.0 },
+    LinearEquation { a: 0.0, b: 0.0 },
+    LinearEquation { a: 0.0, b: 0.0 },
+    LinearEquation { a: 0.0, b: 0.0 },
 ];
 
 fn main() {
@@ -124,7 +130,7 @@ fn main() {
         Arc::new(Mutex::new([[0; URAP_REG_WIDTH]; URAP_REG_COUNT]));
 
     let mut registers_lk = registers.lock().unwrap();
-    registers_lk[ADDR_ENBL_LINEAR_PID] = [1;URAP_REG_WIDTH];
+    registers_lk[ADDR_ENBL_LINEAR_PID] = [1; URAP_REG_WIDTH];
     drop(registers_lk);
 
     UrapSlave::spawn(URAP_THERMO_PATH, registers.clone(), URAP_WRITE_PROTECT).unwrap();
@@ -187,7 +193,6 @@ fn main() {
             .checked_add(Duration::from_millis(LOOP_TIME_MS))
             .unwrap();
 
-
         let mut registers_lk = registers.lock().unwrap();
 
         // Increment the inchash
@@ -196,7 +201,6 @@ fn main() {
 
         // Normal Operation
         if urap_watchdog.read_u32(ADDR_ESTOP).unwrap_or(1) == 0 {
-
             // Values retrieved from sources that may fail
             let (
                 mut t1_c,
@@ -209,15 +213,7 @@ fn main() {
                 mut motor_line_a,
                 mut line_v,
             ) = (
-                0_f32,
-                0_f32,
-                0_f32,
-                0_f32,
-                0_f32,
-                0_f32,
-                0_f32,
-                0_f32,
-                0_f32,
+                0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32,
             );
 
             let temps: [(&mut f32, u16); 7] = [
@@ -232,7 +228,7 @@ fn main() {
 
             let motor_stats: [(&mut f32, u16); 2] = [
                 (&mut motor_line_a, ADDR_LINE_A as u16),
-                (&mut line_v, ADDR_LINE_V as u16)
+                (&mut line_v, ADDR_LINE_V as u16),
             ];
 
             for (temp, addr) in temps {
@@ -244,7 +240,7 @@ fn main() {
                     }
                 };
             }
-            
+
             for (motor_stat, addr) in motor_stats {
                 *motor_stat = match urap_screw.read_f32(addr) {
                     Ok(val) => val,
@@ -254,18 +250,8 @@ fn main() {
                     }
                 };
             }
-            
-            let (
-                t1_c,
-                t2_c,
-                t3_c,
-                t4_c,
-                t5_c,
-                t6_c,
-                t_amb_c,
-                motor_line_a,
-                line_v,
-            ) = (
+
+            let (t1_c, t2_c, t3_c, t4_c, t5_c, t6_c, t_amb_c, motor_line_a, line_v) = (
                 t1_c,
                 t2_c,
                 t3_c,
@@ -310,8 +296,11 @@ fn main() {
                     (&mut pid_z3, ADDR_P_Z3, ADDR_I_Z3, ADDR_D_Z3),
                     (&mut pid_z4, ADDR_P_Z4, ADDR_I_Z4, ADDR_D_Z4),
                     (&mut pid_z5, ADDR_P_Z5, ADDR_I_Z5, ADDR_D_Z5),
-                    (&mut pid_z6, ADDR_P_Z6, ADDR_I_Z6, ADDR_D_Z6)
-                ].iter_mut().enumerate() {
+                    (&mut pid_z6, ADDR_P_Z6, ADDR_I_Z6, ADDR_D_Z6),
+                ]
+                .iter_mut()
+                .enumerate()
+                {
                     pid.p(LINEAR_P[i].f(pid.setpoint - t_amb_c).max(0.0), 1.0);
                     pid.i(LINEAR_I[i].f(pid.setpoint - t_amb_c).max(0.0), 1.0);
                     pid.d(LINEAR_D[i].f(pid.setpoint - t_amb_c).max(0.0), 1.0);
@@ -324,12 +313,54 @@ fn main() {
 
             if registers_lk[ADDR_RELOAD_PID] != [0; URAP_REG_WIDTH] {
                 for (pid, addr_p, addr_i, addr_d, addr_i_range, i_range) in [
-                    (&mut pid_z1, ADDR_P_Z1, ADDR_I_Z1, ADDR_D_Z1, ADDR_I_RANGE_Z1_C, &mut pid_z1_irange_c),
-                    (&mut pid_z2, ADDR_P_Z2, ADDR_I_Z2, ADDR_D_Z2, ADDR_I_RANGE_Z2_C, &mut pid_z2_irange_c),
-                    (&mut pid_z3, ADDR_P_Z3, ADDR_I_Z3, ADDR_D_Z3, ADDR_I_RANGE_Z3_C, &mut pid_z3_irange_c),
-                    (&mut pid_z4, ADDR_P_Z4, ADDR_I_Z4, ADDR_D_Z4, ADDR_I_RANGE_Z4_C, &mut pid_z4_irange_c),
-                    (&mut pid_z5, ADDR_P_Z5, ADDR_I_Z5, ADDR_D_Z5, ADDR_I_RANGE_Z5_C, &mut pid_z5_irange_c),
-                    (&mut pid_z6, ADDR_P_Z6, ADDR_I_Z6, ADDR_D_Z6, ADDR_I_RANGE_Z6_C, &mut pid_z6_irange_c)
+                    (
+                        &mut pid_z1,
+                        ADDR_P_Z1,
+                        ADDR_I_Z1,
+                        ADDR_D_Z1,
+                        ADDR_I_RANGE_Z1_C,
+                        &mut pid_z1_irange_c,
+                    ),
+                    (
+                        &mut pid_z2,
+                        ADDR_P_Z2,
+                        ADDR_I_Z2,
+                        ADDR_D_Z2,
+                        ADDR_I_RANGE_Z2_C,
+                        &mut pid_z2_irange_c,
+                    ),
+                    (
+                        &mut pid_z3,
+                        ADDR_P_Z3,
+                        ADDR_I_Z3,
+                        ADDR_D_Z3,
+                        ADDR_I_RANGE_Z3_C,
+                        &mut pid_z3_irange_c,
+                    ),
+                    (
+                        &mut pid_z4,
+                        ADDR_P_Z4,
+                        ADDR_I_Z4,
+                        ADDR_D_Z4,
+                        ADDR_I_RANGE_Z4_C,
+                        &mut pid_z4_irange_c,
+                    ),
+                    (
+                        &mut pid_z5,
+                        ADDR_P_Z5,
+                        ADDR_I_Z5,
+                        ADDR_D_Z5,
+                        ADDR_I_RANGE_Z5_C,
+                        &mut pid_z5_irange_c,
+                    ),
+                    (
+                        &mut pid_z6,
+                        ADDR_P_Z6,
+                        ADDR_I_Z6,
+                        ADDR_D_Z6,
+                        ADDR_I_RANGE_Z6_C,
+                        &mut pid_z6_irange_c,
+                    ),
                 ] {
                     pid.p(f32::from_ne_bytes(registers_lk[addr_p]).max(0.0), 1.0);
                     pid.i(f32::from_ne_bytes(registers_lk[addr_i]).max(0.0), 1.0);
@@ -364,27 +395,26 @@ fn main() {
                 false => ssr_z4_fan.set_low(),
             }
 
-            let (pwr_z1,
-                 pwr_z2,
-                 pwr_z3,
-                 pwr_z4,
-                 pwr_z5,
-                 pwr_z6,
-            ) = if registers_lk[ADDR_ENBL_PWR_OVERRIDE] != [0; URAP_REG_WIDTH] {
-                (f32::from_ne_bytes(registers_lk[ADDR_Z1_PWR]).max(0.0),
-                f32::from_ne_bytes(registers_lk[ADDR_Z2_PWR]).max(0.0),
-                f32::from_ne_bytes(registers_lk[ADDR_Z3_PWR]).max(0.0),
-                f32::from_ne_bytes(registers_lk[ADDR_Z4_PWR]).max(0.0),
-                f32::from_ne_bytes(registers_lk[ADDR_Z5_PWR]).max(0.0),
-                f32::from_ne_bytes(registers_lk[ADDR_Z6_PWR]).max(0.0))
-            } else {
-                (pid_z1.next_control_output(t1_c).output.max(0.0),
-                pid_z2.next_control_output(t2_c).output.max(0.0),
-                pid_z3.next_control_output(t3_c).output.max(0.0),
-                pid_z4.next_control_output(t4_c).output.max(0.0),
-                pid_z5.next_control_output(t5_c).output.max(0.0),
-                pid_z6.next_control_output(t6_c).output.max(0.0))
-            };
+            let (pwr_z1, pwr_z2, pwr_z3, pwr_z4, pwr_z5, pwr_z6) =
+                if registers_lk[ADDR_ENBL_PWR_OVERRIDE] != [0; URAP_REG_WIDTH] {
+                    (
+                        f32::from_ne_bytes(registers_lk[ADDR_Z1_PWR]).max(0.0),
+                        f32::from_ne_bytes(registers_lk[ADDR_Z2_PWR]).max(0.0),
+                        f32::from_ne_bytes(registers_lk[ADDR_Z3_PWR]).max(0.0),
+                        f32::from_ne_bytes(registers_lk[ADDR_Z4_PWR]).max(0.0),
+                        f32::from_ne_bytes(registers_lk[ADDR_Z5_PWR]).max(0.0),
+                        f32::from_ne_bytes(registers_lk[ADDR_Z6_PWR]).max(0.0),
+                    )
+                } else {
+                    (
+                        pid_z1.next_control_output(t1_c).output.max(0.0),
+                        pid_z2.next_control_output(t2_c).output.max(0.0),
+                        pid_z3.next_control_output(t3_c).output.max(0.0),
+                        pid_z4.next_control_output(t4_c).output.max(0.0),
+                        pid_z5.next_control_output(t5_c).output.max(0.0),
+                        pid_z6.next_control_output(t6_c).output.max(0.0),
+                    )
+                };
 
             let cur_ideal_a = {
                 pwr_z1 * CUR_Z1_A
@@ -419,12 +449,42 @@ fn main() {
             let pwr_z6 = pwr_z6 * cur_multiplier;
 
             for (instant_on, instant_off, ssr_heat, pwr) in [
-                (&mut instant_z1_on, &mut instant_z1_off, &mut ssr_z1_heat, pwr_z1),
-                (&mut instant_z2_on, &mut instant_z2_off, &mut ssr_z2_heat, pwr_z2),
-                (&mut instant_z3_on, &mut instant_z3_off, &mut ssr_z3_heat, pwr_z3),
-                (&mut instant_z4_on, &mut instant_z4_off, &mut ssr_z4_heat, pwr_z4),
-                (&mut instant_z5_on, &mut instant_z5_off, &mut ssr_z5_heat, pwr_z5),
-                (&mut instant_z6_on, &mut instant_z6_off, &mut ssr_z6_heat, pwr_z6)
+                (
+                    &mut instant_z1_on,
+                    &mut instant_z1_off,
+                    &mut ssr_z1_heat,
+                    pwr_z1,
+                ),
+                (
+                    &mut instant_z2_on,
+                    &mut instant_z2_off,
+                    &mut ssr_z2_heat,
+                    pwr_z2,
+                ),
+                (
+                    &mut instant_z3_on,
+                    &mut instant_z3_off,
+                    &mut ssr_z3_heat,
+                    pwr_z3,
+                ),
+                (
+                    &mut instant_z4_on,
+                    &mut instant_z4_off,
+                    &mut ssr_z4_heat,
+                    pwr_z4,
+                ),
+                (
+                    &mut instant_z5_on,
+                    &mut instant_z5_off,
+                    &mut ssr_z5_heat,
+                    pwr_z5,
+                ),
+                (
+                    &mut instant_z6_on,
+                    &mut instant_z6_off,
+                    &mut ssr_z6_heat,
+                    pwr_z6,
+                ),
             ] {
                 if instant_on.saturating_duration_since(now) == Duration::ZERO {
                     let period_ms = pwr * PWM_PERIOD_MS as f32;

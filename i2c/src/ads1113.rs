@@ -1,6 +1,6 @@
 //! Driver for the ADS1113 ADC for the pressure sensor
 
-use rppal::i2c::{I2c, Error as I2CError};
+use rppal::i2c::{Error as I2CError, I2c};
 
 /// FSO of the PT412 in kPa
 const FSO_KPA: f32 = 68_947.57;
@@ -26,10 +26,7 @@ impl<'a> Ads1113<'a> {
     pub fn new(i2c: &'a mut I2c, addr: u8, calstate: &'a mut CalState) -> Result<Self, I2CError> {
         i2c.set_slave_address(addr as u16)?;
 
-        Ok(Self {
-            i2c,
-            calstate,
-        })
+        Ok(Self { i2c, calstate })
     }
 
     pub fn write_u16(&mut self, addr: u8, val: u16) -> Result<usize, I2CError> {
@@ -40,7 +37,7 @@ impl<'a> Ads1113<'a> {
     }
 
     pub fn read_i16(&mut self, addr: u8) -> Result<i16, I2CError> {
-        let mut buffer: [u8; 2] = [0;2];
+        let mut buffer: [u8; 2] = [0; 2];
 
         self.i2c.write_read(&[addr], &mut buffer)?;
 
@@ -61,22 +58,26 @@ impl<'a> Ads1113<'a> {
 
         let sample = CAL_FSO_KPA / raw_value;
 
-        let sample_weight = 1.0/(self.calstate.cal_samples_hi as f32);
-        let conversion_multiplier_weight = ((self.calstate.cal_samples_hi - 1) as f32)/(self.calstate.cal_samples_hi as f32);
+        let sample_weight = 1.0 / (self.calstate.cal_samples_hi as f32);
+        let conversion_multiplier_weight =
+            ((self.calstate.cal_samples_hi - 1) as f32) / (self.calstate.cal_samples_hi as f32);
 
-        self.calstate.conversion_multiplier = (sample * sample_weight) + (self.calstate.conversion_multiplier * conversion_multiplier_weight);
+        self.calstate.conversion_multiplier = (sample * sample_weight)
+            + (self.calstate.conversion_multiplier * conversion_multiplier_weight);
 
         Ok(raw_value * self.calstate.conversion_multiplier)
     }
-    
+
     pub fn push_calibration_low_sample(&mut self) -> Result<f32, I2CError> {
         self.calstate.cal_samples_lo += 1;
         let raw_value = self.read_i16(0)? as f32;
 
-        let sample_weight = 1.0/(self.calstate.cal_samples_lo as f32);
-        let zero_base_weight = ((self.calstate.cal_samples_lo - 1) as f32)/(self.calstate.cal_samples_lo as f32);
+        let sample_weight = 1.0 / (self.calstate.cal_samples_lo as f32);
+        let zero_base_weight =
+            ((self.calstate.cal_samples_lo - 1) as f32) / (self.calstate.cal_samples_lo as f32);
 
-        self.calstate.zero_base = (raw_value * sample_weight) + (self.calstate.zero_base * zero_base_weight);
+        self.calstate.zero_base =
+            (raw_value * sample_weight) + (self.calstate.zero_base * zero_base_weight);
 
         Ok(raw_value - self.calstate.zero_base)
     }

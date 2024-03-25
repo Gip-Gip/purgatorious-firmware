@@ -43,7 +43,7 @@ fn main() {
         let pipe = pipe.unwrap().path();
         remove_file(pipe).unwrap();
     }
-    
+
     let registers: Arc<Mutex<[[u8; URAP_REG_WIDTH]; 1]>> =
         Arc::new(Mutex::new([[0; URAP_REG_WIDTH]]));
 
@@ -133,7 +133,7 @@ fn main() {
             if !thread.is_finished() {
                 let mut registers_lk = registers.lock().unwrap();
 
-                registers_lk[ADDR_ESTOP as usize] = [1;4];
+                registers_lk[ADDR_ESTOP as usize] = [1; 4];
 
                 drop(registers_lk);
 
@@ -203,7 +203,7 @@ fn main() {
                 Err(e) => {
                     let mut registers_lk = registers.lock().unwrap();
 
-                    registers_lk[ADDR_ESTOP as usize] = [1;4];
+                    registers_lk[ADDR_ESTOP as usize] = [1; 4];
 
                     drop(registers_lk);
 

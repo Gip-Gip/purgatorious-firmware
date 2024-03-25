@@ -1,6 +1,8 @@
 //! Driver for Quantum III motor drivers over UART/RS-485
 
-use std::{error::Error as ErrorT, fmt::Display, num::ParseIntError, thread::sleep, time::Duration};
+use std::{
+    error::Error as ErrorT, fmt::Display, num::ParseIntError, thread::sleep, time::Duration,
+};
 
 use enum_primitive_derive::Primitive;
 use num_traits::*;
@@ -83,7 +85,7 @@ impl ZeroPage {
     pub fn drive_enabled(&self) -> bool {
         self.drive_enabled
     }
-    
+
     #[inline]
     pub fn drive_ok(&self) -> bool {
         self.drive_ok
@@ -250,7 +252,7 @@ impl QuantumIII {
         buf.push(0x05); // ENQ
 
         self.uart.write(&buf)?;
-        
+
         self.parse_param()
     }
 

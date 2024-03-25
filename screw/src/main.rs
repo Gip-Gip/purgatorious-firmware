@@ -1,7 +1,9 @@
 //! Interface with the screw motor controller
 
 use std::{
-    f32::NAN, sync::{Arc, Mutex}, time::{Duration, Instant}
+    f32::NAN,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
 };
 
 use quantumiii::QuantumIII;
@@ -51,7 +53,6 @@ fn main() {
 
         // Normal Operation
         if urap_watchdog.read_u32(ADDR_ESTOP).unwrap_or(1) == 0 {
-
             let set_screw_rpm = f32::from_ne_bytes(registers_lk[ADDR_SET_SCREW_RPM]);
 
             drop(registers_lk);
@@ -80,12 +81,10 @@ fn main() {
             // subsequent queries.
             let zeropage = quantumiii.read_zero_page().unwrap_or_else(|_| {
                 quantumiii.fault_reset().unwrap();
-                quantumiii
-                    .read_zero_page()
-                    .unwrap_or_else(|_| {
-                        quantumiii.fault_reset().unwrap();
-                        quantumiii.read_zero_page().unwrap()
-                    })
+                quantumiii.read_zero_page().unwrap_or_else(|_| {
+                    quantumiii.fault_reset().unwrap();
+                    quantumiii.read_zero_page().unwrap()
+                })
             });
 
             // Luck permitting all queries should take about 157ms (18ms + 22ms + 117ms)
@@ -101,9 +100,10 @@ fn main() {
                 }
                 .to_ne_bytes();
 
-                propogation_check = propogation_check.checked_add(Duration::from_millis(PROPOGATION_POLL_MS)).unwrap();
+                propogation_check = propogation_check
+                    .checked_add(Duration::from_millis(PROPOGATION_POLL_MS))
+                    .unwrap();
             }
-
 
             registers_lk[ADDR_ACT_SCREW_RPM] = zeropage.get_act_screw_rpm().to_ne_bytes();
             registers_lk[ADDR_ACT_MOTOR_RPM] = zeropage.get_act_motor_rpm().to_ne_bytes();
@@ -129,7 +129,10 @@ fn main() {
 
                 let trip_history = zeropage.get_trip_history();
 
-                println!("*FAULT* QuantumIII Tripped! Past 3 trips: {:?} {:?} {:?}", trip_history[0], trip_history[1], trip_history[2]);
+                println!(
+                    "*FAULT* QuantumIII Tripped! Past 3 trips: {:?} {:?} {:?}",
+                    trip_history[0], trip_history[1], trip_history[2]
+                );
             }
         }
         // E-Stop Code
