@@ -261,8 +261,6 @@ impl PIDAutotuner {
     pub fn get_kpid(&self, tuning_rule: TuningRule) -> (f32, f32, f32) {
         let (pdiv, idiv, ddiv): (f32, f32, f32) = tuning_rule.into();
 
-        let pu_s = self.pu_ms / 1000.0;
-
         let kp = self.ku / pdiv;
         let ki = kp / (self.pu_ms / idiv);
         let kd = kp / (self.pu_ms / ddiv);
@@ -291,6 +289,10 @@ struct Cli {
     /// The noiseband in c
     #[arg(short, long, value_name = "noiseband_c")]
     noiseband_c: f32,
+
+    /// Simply score the provided PID value and don't perform genetic fine tuning
+    #[arg(short, long, value_name = "test")]
+    test: bool,
 
     /// Supply your own kp, ki, and kd and skip the rough autotuning
     #[arg(short, long, value_name = "p")]
@@ -383,6 +385,97 @@ fn main() {
     ideal_pid.p(kp, 1.0);
     ideal_pid.i(ki, 1.0);
     ideal_pid.d(kd, 1.0);
+
+    if cli.test {
+            urap_thermo.write_f32(addr_pwr, cli.output_step).unwrap();
+
+            loop {
+                let temp_c = urap_i2c.read_f32(addr_temp).unwrap();
+                if temp_c >= cli.setpoint_c + cli.noiseband_c {
+                    break;
+                }
+            
+                print!("\rWarmup @ {:.0}C\t", temp_c);
+                std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
+            }
+
+            urap_thermo.write_f32(addr_pwr, 0.0).unwrap();
+            loop {
+                let temp_c = urap_i2c.read_f32(addr_temp).unwrap();
+                if temp_c <= cli.setpoint_c - 10.0 {
+                    break;
+                }
+                
+                print!("\rCooldown @ {:.0}C\t", temp_c);
+                std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
+            }
+
+            let sample_length_ms = cli.lookback_ms * 3;
+
+            let test_end = Instant::now().checked_add(Duration::from_millis(sample_length_ms)).unwrap();
+
+            let mut points: Vec<f32> = Vec::with_capacity((sample_length_ms / cli.sample_time_ms) as usize);
+
+            loop {
+                let temp_c = urap_i2c.read_f32(addr_temp).unwrap();
+                let pwr = ideal_pid.next_control_output(temp_c).output;
+
+                urap_thermo.write_f32(addr_pwr, pwr).unwrap();
+
+                points.push(temp_c);
+
+                if test_end.saturating_duration_since(Instant::now()).is_zero() {
+                    break;
+                }
+                
+                print!("\rCollecting Points @ {:.0}C\t", temp_c);
+                std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
+            }
+
+            let mut minima_points: Vec<f32> = Vec::with_capacity(points.capacity());
+            let mut maxima_points: Vec<f32> = Vec::with_capacity(points.capacity());
+
+            for point in points {
+                if point < cli.setpoint_c {
+                    minima_points.push(point);
+                } else {
+                    maxima_points.push(point);
+                }
+            }
+
+            while minima_points.len() < maxima_points.len() {
+                minima_points.push(cli.setpoint_c);
+            }
+            
+            while maxima_points.len() < minima_points.len() {
+                maxima_points.push(cli.setpoint_c);
+            }
+
+            let mut minima_mean: f64 = 0.0;
+            let mut maxima_mean: f64 = 0.0;
+            let minima_weight: f64 = 1.0/minima_points.len() as f64;
+            let maxima_weight: f64 = 1.0/maxima_points.len() as f64;
+
+            for point in minima_points {
+                minima_mean += point as f64 * minima_weight;
+            }
+
+            for point in maxima_points {
+                maxima_mean += point as f64 * maxima_weight;
+            }
+
+            let score = (maxima_mean - minima_mean).powi(2);
+
+            let kp = ideal_pid.kp;
+            let ki = ideal_pid.ki;
+            let kd = ideal_pid.kd;
+
+            println!("\n\nPID of values kp={:.3e}, ki={:.3e}, & kd={:.3e} produced {} score", kp, ki, kd, score);
+            
+            urap_thermo.write_f32(addr_pwr, 0.0).unwrap();
+
+            return;
+    }
 
     let rng = Normal::new(1.0, 0.25).unwrap();
 
@@ -480,8 +573,12 @@ fn main() {
             }
 
             let score = (maxima_mean - minima_mean).powi(2);
+            
+            let kp = child.kp;
+            let ki = child.ki;
+            let kd = child.kd;
 
-            println!("\n\nChild of values {:?} produced {} score", child, score);
+            println!("\n\nChild of values kp={:.3e}, ki={:.3e}, & kd={:.3e} produced {} score", kp, ki, kd, score);
 
             children.push((score, child));
         }
@@ -520,4 +617,6 @@ fn main() {
     }
 
     println!("\n\nCalibration done!");
+    
+    urap_thermo.write_f32(addr_pwr, 0.0).unwrap();
 }
