@@ -37,8 +37,11 @@ const POLLSTAGGER_MS: u64 = POLLRATE_TC_MS / 10;
 
 const CAL_TIME_MS: u64 = 10000;
 const CAL_START_TIME_MS: u64 = 1000;
+const TC_TIMEOUT_MS: u64 = 3000;
 
 const CAL_RELAY_PIN: u8 = 21;
+
+const MAX_TEMP_C: f32 = 250.0;
 
 fn main() {
     let mut urap_watchdog = UrapMaster::new(URAP_WATCHDOG_PATH).unwrap();
@@ -172,62 +175,47 @@ fn main() {
         registers[ADDR_BARREL_KPA] = barrel_kpa.to_ne_bytes();
 
         // Poll thermocouples
-        if poll_tc1.saturating_duration_since(now) == Duration::ZERO {
-            let mut tc1 = Mcp9600::new(&mut i2c, I2CADDR_TC1).unwrap();
-            (t1_c, ta1_c) = tc1.get_temp_c().unwrap_or((t1_c, ta1_c));
 
-            poll_tc1 = now
-                .checked_add(Duration::from_millis(POLLRATE_TC_MS))
-                .unwrap();
-        }
-        if poll_tc2.saturating_duration_since(now) == Duration::ZERO {
-            let mut tc2 = Mcp9600::new(&mut i2c, I2CADDR_TC2).unwrap();
-            (t2_c, ta2_c) = tc2.get_temp_c().unwrap_or((t2_c, t2_c));
+        let thermos: [(&mut Instant, u8, &mut f32, &mut f32); 7] = [
+            (&mut poll_tc1, I2CADDR_TC1, &mut t1_c, &mut ta1_c),
+            (&mut poll_tc2, I2CADDR_TC2, &mut t2_c, &mut ta2_c),
+            (&mut poll_tc3, I2CADDR_TC3, &mut t3_c, &mut ta3_c),
+            (&mut poll_tc4, I2CADDR_TC4, &mut t4_c, &mut ta4_c),
+            (&mut poll_tc5, I2CADDR_TC5, &mut t5_c, &mut ta5_c),
+            (&mut poll_tc6, I2CADDR_TC6, &mut t6_c, &mut ta6_c),
+            (&mut poll_tc7, I2CADDR_TC7, &mut t7_c, &mut ta7_c),
+        ];
 
-            poll_tc2 = now
-                .checked_add(Duration::from_millis(POLLRATE_TC_MS))
-                .unwrap();
-        }
-        if poll_tc3.saturating_duration_since(now) == Duration::ZERO {
-            let mut tc3 = Mcp9600::new(&mut i2c, I2CADDR_TC3).unwrap();
-            (t3_c, ta3_c) = tc3.get_temp_c().unwrap_or((t3_c, ta3_c));
+        for (poll, addr, temp_c, tamb_c) in thermos {
+            if poll.saturating_duration_since(now).is_zero() {
+                let mut tc = Mcp9600::new(&mut i2c, addr).unwrap();
+                (*temp_c, *tamb_c) = match tc.get_temp_c() {
+                    Ok(val) => {
+                        *poll = now.checked_add(Duration::from_millis(POLLRATE_TC_MS)).unwrap();
 
-            poll_tc3 = now
-                .checked_add(Duration::from_millis(POLLRATE_TC_MS))
-                .unwrap();
-        }
-        if poll_tc4.saturating_duration_since(now) == Duration::ZERO {
-            let mut tc4 = Mcp9600::new(&mut i2c, I2CADDR_TC4).unwrap();
-            (t4_c, ta4_c) = tc4.get_temp_c().unwrap_or((t4_c, ta4_c));
+                        val
+                    }
+                    Err(_) => {
+                        if now.saturating_duration_since(*poll) >= Duration::from_millis(TC_TIMEOUT_MS) {
+                            if urap_watchdog.read_u32(ADDR_ESTOP).unwrap_or(1) == 0 {
+                                println!("**FAULT** Timeout on communicating with Mcp9600 at address {}", addr);
+                            }
+                            urap_watchdog.write_u32(ADDR_ESTOP, 1).unwrap();
+                        }
 
-            poll_tc4 = now
-                .checked_add(Duration::from_millis(POLLRATE_TC_MS))
-                .unwrap();
-        }
-        if poll_tc5.saturating_duration_since(now) == Duration::ZERO {
-            let mut tc5 = Mcp9600::new(&mut i2c, I2CADDR_TC5).unwrap();
-            (t5_c, ta5_c) = tc5.get_temp_c().unwrap_or((t5_c, ta5_c));
+                        (*temp_c, *tamb_c)
+                    }
+                };
+            }
 
-            poll_tc5 = now
-                .checked_add(Duration::from_millis(POLLRATE_TC_MS))
-                .unwrap();
+            if *temp_c >= MAX_TEMP_C {
+                if urap_watchdog.read_u32(ADDR_ESTOP).unwrap_or(1) == 0 {
+                    println!("**FAULT** Overtemp of {} read from Mcp9600 at address {}", *temp_c, addr);
+                }
+                urap_watchdog.write_u32(ADDR_ESTOP, 1).unwrap();
+            }
         }
-        if poll_tc6.saturating_duration_since(now) == Duration::ZERO {
-            let mut tc6 = Mcp9600::new(&mut i2c, I2CADDR_TC6).unwrap();
-            (t6_c, ta6_c) = tc6.get_temp_c().unwrap_or((t6_c, ta6_c));
-
-            poll_tc6 = now
-                .checked_add(Duration::from_millis(POLLRATE_TC_MS))
-                .unwrap();
-        }
-        if poll_tc7.saturating_duration_since(now) == Duration::ZERO {
-            let mut tc7 = Mcp9600::new(&mut i2c, I2CADDR_TC7).unwrap();
-            (t7_c, ta7_c) = tc7.get_temp_c().unwrap_or((t7_c, ta7_c));
-
-            poll_tc7 = now
-                .checked_add(Duration::from_millis(POLLRATE_TC_MS))
-                .unwrap();
-        }
+        
         if poll_barrel_pres.saturating_duration_since(now) == Duration::ZERO {
             let mut barrel_pres = Ads1113::new(&mut i2c, I2CADDR_BARREL_PRESSURE, &mut barrel_cal).unwrap();
 

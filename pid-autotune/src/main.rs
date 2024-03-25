@@ -61,6 +61,7 @@ enum TuningRule {
     SomeOvershoot,
     NoOvershoot,
     Brewing,
+    HighMass,
     Flat,
 }
 
@@ -74,6 +75,7 @@ impl Into<(f32, f32, f32)> for TuningRule {
             TuningRule::SomeOvershoot => (60.0, 40.0, 60.0),
             TuningRule::NoOvershoot => (100.0, 40.0, 60.0),
             TuningRule::Brewing => (2.5, 6.0, 380.0),
+            TuningRule::HighMass => (2.189, 9.115e-1, 4.248e-3),
             TuningRule::Flat => (1.0, 1.0, 1.0),
         }
     }
@@ -333,7 +335,7 @@ fn main() {
 
         match status {
             PIDAutotuneState::Succeeded => {
-                let tuning_rules: [TuningRule; 8] = [
+                let tuning_rules: [TuningRule; 9] = [
                     TuningRule::ZeiglerNichols,
                     TuningRule::TyreusLuyben,
                     TuningRule::CianconeMarlin,
@@ -341,6 +343,7 @@ fn main() {
                     TuningRule::SomeOvershoot,
                     TuningRule::NoOvershoot,
                     TuningRule::Brewing,
+                    TuningRule::HighMass,
                     TuningRule::Flat,
                 ];
 
@@ -361,7 +364,7 @@ fn main() {
         std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
     }}
 
-    let choice = TuningRule::Brewing;
+    let choice = TuningRule::HighMass;
 
     println!("\n\nPerforming Genetic Fine Tuning using {:?}", choice);
 
@@ -455,6 +458,14 @@ fn main() {
                 }
             }
 
+            while minima_points.len() < maxima_points.len() {
+                minima_points.push(cli.setpoint_c);
+            }
+            
+            while maxima_points.len() < minima_points.len() {
+                maxima_points.push(cli.setpoint_c);
+            }
+
             let mut minima_mean: f64 = 0.0;
             let mut maxima_mean: f64 = 0.0;
             let minima_weight: f64 = 1.0/minima_points.len() as f64;
@@ -467,8 +478,6 @@ fn main() {
             for point in maxima_points {
                 maxima_mean += point as f64 * maxima_weight;
             }
-
-            maxima_mean = maxima_mean.max(cli.setpoint_c as f64);
 
             let score = (maxima_mean - minima_mean).powi(2);
 
