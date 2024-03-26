@@ -590,20 +590,27 @@ impl<'a> eframe::App for MyApp {
                             .write_u32(ADDR_ESTOP, 0)
                             .unwrap_or_default();
 
-                        let urap_i2c = UrapMaster::new(URAP_I2C_PATH);
-                        let urap_thermo = UrapMaster::new(URAP_THERMO_PATH);
-                        let urap_screw = UrapMaster::new(URAP_SCREW_PATH);
+                        if !self.urap_i2c.is_healthy() {
+                            let urap_i2c = UrapMaster::new(URAP_I2C_PATH);
 
-                        if let Ok(val) = urap_i2c {
-                            self.urap_i2c = val;
+                            if let Ok(val) = urap_i2c {
+                                self.urap_i2c = val;
+                            }
+                        }
+                        if !self.urap_thermo.is_healthy() {
+                            let urap_thermo = UrapMaster::new(URAP_THERMO_PATH);
+
+                            if let Ok(val) = urap_thermo {
+                                self.urap_thermo = val;
+                            }
                         }
 
-                        if let Ok(val) = urap_thermo {
-                            self.urap_thermo = val;
-                        }
+                        if !self.urap_screw.is_healthy() {
+                            let urap_screw = UrapMaster::new(URAP_SCREW_PATH);
 
-                        if let Ok(val) = urap_screw {
-                            self.urap_screw = val;
+                            if let Ok(val) = urap_screw {
+                                self.urap_screw = val;
+                            }
                         }
                     }
                 }

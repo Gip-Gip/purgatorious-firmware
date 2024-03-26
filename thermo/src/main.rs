@@ -47,7 +47,7 @@ const CUR_Z2_A: f32 = 15.0;
 const CUR_Z3_A: f32 = 12.5;
 const CUR_Z4_A: f32 = 24.0;
 const CUR_Z5_A: f32 = 6.0;
-const CUR_Z6_A: f32 = 3.0;
+const CUR_Z6_A: f32 = 1.6;
 
 const FAN_ENABLE_C: f32 = 10.0;
 
@@ -312,6 +312,8 @@ fn main() {
             }
 
             if registers_lk[ADDR_RELOAD_PID] != [0; URAP_REG_WIDTH] {
+                registers_lk[ADDR_RELOAD_PID] = [0; URAP_REG_WIDTH];
+
                 for (pid, addr_p, addr_i, addr_d, addr_i_range, i_range) in [
                     (
                         &mut pid_z1,
@@ -530,8 +532,12 @@ fn main() {
             ssr_z6_heat.set_low();
 
             // Reopen any URAP connections that may have been lost
-            urap_i2c = UrapMaster::new(URAP_I2C_PATH).unwrap_or(urap_i2c);
-            urap_screw = UrapMaster::new(URAP_SCREW_PATH).unwrap_or(urap_screw);
+            if !urap_i2c.is_healthy() {
+                urap_i2c = UrapMaster::new(URAP_I2C_PATH).unwrap_or(urap_i2c);
+            }
+            if !urap_screw.is_healthy() {
+                urap_screw = UrapMaster::new(URAP_SCREW_PATH).unwrap_or(urap_screw);
+            }
         }
 
         sleep_till(wakeup);

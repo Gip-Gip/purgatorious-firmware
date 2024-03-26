@@ -112,6 +112,14 @@ impl UrapMaster {
     pub fn write_u32(&mut self, register: u16, data: u32) -> Result<(), std::io::Error> {
         self.write_4u8(register, data.to_ne_bytes())
     }
+
+    #[inline]
+    pub fn is_healthy(&mut self) -> bool {
+        match self.read_4u8(0) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
 }
 
 impl Drop for UrapMaster {

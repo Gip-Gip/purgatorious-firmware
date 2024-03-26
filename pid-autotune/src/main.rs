@@ -451,39 +451,14 @@ fn main() {
             std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
         }
 
-        let mut minima_points: Vec<f32> = Vec::with_capacity(points.capacity());
-        let mut maxima_points: Vec<f32> = Vec::with_capacity(points.capacity());
+        let mut delta_mean: f64 = 0.0;
+        let delta_mean_weight: f64 = 1.0 / points.len() as f64;
 
         for point in points {
-            if point < cli.setpoint_c {
-                minima_points.push(point);
-            } else {
-                maxima_points.push(point);
-            }
+            delta_mean += (cli.setpoint_c - point).abs() as f64 * delta_mean_weight;
         }
 
-        while minima_points.len() < maxima_points.len() {
-            minima_points.push(cli.setpoint_c);
-        }
-
-        while maxima_points.len() < minima_points.len() {
-            maxima_points.push(cli.setpoint_c);
-        }
-
-        let mut minima_mean: f64 = 0.0;
-        let mut maxima_mean: f64 = 0.0;
-        let minima_weight: f64 = 1.0 / minima_points.len() as f64;
-        let maxima_weight: f64 = 1.0 / maxima_points.len() as f64;
-
-        for point in minima_points {
-            minima_mean += point as f64 * minima_weight;
-        }
-
-        for point in maxima_points {
-            maxima_mean += point as f64 * maxima_weight;
-        }
-
-        let score = (maxima_mean - minima_mean).powi(2);
+        let score = delta_mean.powi(2);
 
         let kp = ideal_pid.kp;
         let ki = ideal_pid.ki;
@@ -502,6 +477,7 @@ fn main() {
     let rng = Normal::new(1.0, 0.25).unwrap();
 
     let mut last_score = f64::INFINITY;
+    let mut last_score_mid = f64::INFINITY;
 
     loop {
         let mut children: Vec<(f64, Pid<f32>)> = Vec::with_capacity(10);
@@ -542,12 +518,10 @@ fn main() {
 
             let sample_length_ms = cli.lookback_ms * 3;
 
-            let test_end = Instant::now()
-                .checked_add(Duration::from_millis(sample_length_ms))
-                .unwrap();
-
             let mut points: Vec<f32> =
                 Vec::with_capacity((sample_length_ms / cli.sample_time_ms) as usize);
+
+            let mut delta_mean: f64 = 0.0;
 
             loop {
                 let temp_c = urap_i2c.read_f32(addr_temp).unwrap();
@@ -555,49 +529,28 @@ fn main() {
 
                 urap_thermo.write_f32(addr_pwr, pwr).unwrap();
 
+                let delta_mean_weight: f64 = 1.0 / points.capacity() as f64;
+
+                delta_mean += (temp_c - cli.setpoint_c).abs() as f64 * delta_mean_weight;
+
                 points.push(temp_c);
 
-                if test_end.saturating_duration_since(Instant::now()).is_zero() {
+                if points.len() >= points.capacity() {
                     break;
+                }
+
+                if points.len() == (points.capacity() / 2) && (delta_mean * 2.0) > (1.25 * last_score_mid) {
+                    delta_mean *= 2.0;
+                    break;
+                } else {
+                    last_score_mid = (delta_mean * 2.0).min(last_score_mid);
                 }
 
                 print!("\rCollecting Points @ {:.0}C\t", temp_c);
                 std::thread::sleep(Duration::from_millis(cli.sample_time_ms));
             }
 
-            let mut minima_points: Vec<f32> = Vec::with_capacity(points.capacity());
-            let mut maxima_points: Vec<f32> = Vec::with_capacity(points.capacity());
-
-            for point in points {
-                if point < cli.setpoint_c {
-                    minima_points.push(point);
-                } else {
-                    maxima_points.push(point);
-                }
-            }
-
-            while minima_points.len() < maxima_points.len() {
-                minima_points.push(cli.setpoint_c);
-            }
-
-            while maxima_points.len() < minima_points.len() {
-                maxima_points.push(cli.setpoint_c);
-            }
-
-            let mut minima_mean: f64 = 0.0;
-            let mut maxima_mean: f64 = 0.0;
-            let minima_weight: f64 = 1.0 / minima_points.len() as f64;
-            let maxima_weight: f64 = 1.0 / maxima_points.len() as f64;
-
-            for point in minima_points {
-                minima_mean += point as f64 * minima_weight;
-            }
-
-            for point in maxima_points {
-                maxima_mean += point as f64 * maxima_weight;
-            }
-
-            let score = (maxima_mean - minima_mean).powi(2);
+            let score = delta_mean.powi(2);
 
             let kp = child.kp;
             let ki = child.ki;
@@ -636,7 +589,8 @@ fn main() {
 
         if last_score > parent_1_score {
             println!(
-                "New Ideal kPID:\nkp={:.3e}\nki={:.3e}\nkd={:.3e}",
+                "New Ideal kPID @ {:.0}C:\nkp={:.3e}\nki={:.3e}\nkd={:.3e}",
+                urap_i2c.read_f32(ADDR_AMBIENT_C as u16).unwrap_or(0.0),
                 ideal_pid.kp, ideal_pid.ki, ideal_pid.kd
             );
         }
