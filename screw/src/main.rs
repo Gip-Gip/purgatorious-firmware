@@ -1,11 +1,11 @@
 //! Interface with the screw motor controller
 
 use std::{
-    f32::NAN,
-    sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    f32::NAN, fs::File, io::Write, sync::{Arc, Mutex}, time::{Duration, Instant}
 };
 
+use num_traits::ToBytes;
+use q3_backup::{Param, PARAMS};
 use quantumiii::QuantumIII;
 use screw::*;
 use shared::{sleep_till, URAP_SCREW_PATH, URAP_WATCHDOG_PATH};
@@ -13,9 +13,11 @@ use urap::*;
 use watchdog::ADDR_ESTOP;
 
 mod quantumiii;
+mod q3_backup;
 
 const Q3_ADDR: u8 = 1;
 static UART_PATH: &str = "/dev/ttyAMA0";
+static BACKUP_FILE: &str = "/opt/firmware/q3_backup.json";
 
 const URAP_REG_COUNT: usize = 0x09;
 
@@ -41,6 +43,8 @@ fn main() {
 
     let mut propogation_check = Instant::now();
 
+    let mut backup_buffer: Option<Vec<Param>> = None;
+
     loop {
         let now = Instant::now();
         let wakeup = now.checked_add(Duration::from_millis(POLL_MS)).unwrap();
@@ -50,6 +54,45 @@ fn main() {
         // Increment the inchash
         let inchash = u32::from_ne_bytes(registers_lk[ADDR_INCHASH]) + 1;
         registers_lk[ADDR_INCHASH] = inchash.to_ne_bytes();
+
+        // Backup the quantum 3's parameters
+        if registers_lk[ADDR_BACKUP_Q3] != [0; URAP_REG_WIDTH] {
+            urap_watchdog.write_u32(ADDR_ESTOP, 1).unwrap();
+
+            if backup_buffer.is_none() {
+                backup_buffer = Some(Vec::with_capacity(PARAMS.len()));
+                registers_lk[ADDR_BACKUP_Q3] = 0_u32.to_ne_bytes();
+            }
+
+            let i = u32::from_ne_bytes(registers_lk[ADDR_BACKUP_Q3]) as usize;
+
+            if i == PARAMS.len() {
+                registers_lk[ADDR_BACKUP_Q3] = 0_u32.to_ne_bytes();
+
+                let mut backup_file = File::create(BACKUP_FILE).unwrap();
+
+                let json = serde_json::to_string(&backup_buffer.as_ref().unwrap()).unwrap();
+
+                backup_file.write_all(&json.as_bytes()).unwrap();
+
+                backup_buffer = None;
+            } else {
+                if let Some(backup_buffer) = &mut backup_buffer {
+                    let mut param = PARAMS[i].clone();
+
+                    param.val = Some(quantumiii.read_param(param.id).unwrap_or_else(|_| {
+                        quantumiii.fault_reset().unwrap();
+                        quantumiii.read_param(param.id).unwrap_or_else(|_| {
+                            quantumiii.fault_reset().unwrap();
+                            quantumiii.read_param(param.id).unwrap()
+                        })
+                    }));
+
+                    backup_buffer.push(param);
+                }
+                registers_lk[ADDR_BACKUP_Q3] = ((i as u32) + 1).to_ne_bytes();
+            }
+        }
 
         // Normal Operation
         if urap_watchdog.read_u32(ADDR_ESTOP).unwrap_or(1) == 0 {
@@ -140,10 +183,6 @@ fn main() {
             drop(registers_lk);
 
             quantumiii.set_screw_rpm(0.0).unwrap_or_else(|_| {
-                quantumiii.fault_reset().unwrap();
-            });
-
-            quantumiii.attempt_trip_reset().unwrap_or_else(|_| {
                 quantumiii.fault_reset().unwrap();
             });
         }

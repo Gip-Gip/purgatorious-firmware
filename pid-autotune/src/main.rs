@@ -77,7 +77,7 @@ impl Into<(f32, f32, f32)> for TuningRule {
             TuningRule::SomeOvershoot => (60.0, 40.0, 60.0),
             TuningRule::NoOvershoot => (100.0, 40.0, 60.0),
             TuningRule::Brewing => (2.5, 6.0, 380.0),
-            TuningRule::HighMass => (2.189, 9.115e-1, 4.248e-3),
+            TuningRule::HighMass => (2.212, 5.174, 5.628e-3),
             TuningRule::Flat => (1.0, 1.0, 1.0),
         }
     }

@@ -4,3 +4,6 @@ target = "aarch64-unknown-linux-gnu"
 [target.aarch64-unknown-linux-gnu]
 #linker = "aarch64-linux-gnu-gcc"
 linker = "/home/thompsonc/Downloads/gcc-arm-10.3-2021.07-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-gcc"
+
+[alias]
+test_pc = "test --target=x86_64-unknown-linux-gnu"

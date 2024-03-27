@@ -6,3 +6,4 @@ pub const ADDR_MOTOR_V: usize = 0x0005;
 pub const ADDR_DRIVE_ENBL: usize = 0x0006;
 pub const ADDR_LINE_V: usize = 0x0007;
 pub const ADDR_LINE_A: usize = 0x0008;
+pub const ADDR_BACKUP_Q3: usize = 0x0009;
