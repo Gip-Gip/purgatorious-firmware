@@ -4,7 +4,6 @@ use std::{
     f32::NAN, fs::File, io::Write, sync::{Arc, Mutex}, time::{Duration, Instant}
 };
 
-use num_traits::ToBytes;
 use q3_backup::{Param, PARAMS};
 use quantumiii::QuantumIII;
 use screw::*;
@@ -19,13 +18,13 @@ const Q3_ADDR: u8 = 1;
 static UART_PATH: &str = "/dev/ttyAMA0";
 static BACKUP_FILE: &str = "/opt/firmware/q3_backup.json";
 
-const URAP_REG_COUNT: usize = 0x09;
+const URAP_REG_COUNT: usize = 0x0A;
 
 const POLL_MS: u64 = 500;
 const PROPOGATION_POLL_MS: u64 = 2000;
 
 const URAP_WRITE_PROTECT: [bool; URAP_REG_COUNT] =
-    [true, false, true, true, true, true, true, true, true];
+    [true, false, true, true, true, true, true, true, true, false];
 
 fn main() {
     let mut urap_watchdog = UrapMaster::new(URAP_WATCHDOG_PATH).unwrap();
