@@ -64,6 +64,7 @@ enum TuningRule {
     NoOvershoot,
     Brewing,
     HighMass,
+    Marlin,
     Flat,
 }
 
@@ -78,6 +79,7 @@ impl Into<(f32, f32, f32)> for TuningRule {
             TuningRule::NoOvershoot => (100.0, 40.0, 60.0),
             TuningRule::Brewing => (2.5, 6.0, 380.0),
             TuningRule::HighMass => (2.212, 5.174, 5.628e-3),
+            TuningRule::Marlin => (1.7, 0.5, 8.0),
             TuningRule::Flat => (1.0, 1.0, 1.0),
         }
     }
@@ -270,9 +272,11 @@ impl PIDAutotuner {
     pub fn get_kpid(&self, tuning_rule: TuningRule) -> (f32, f32, f32) {
         let (pdiv, idiv, ddiv): (f32, f32, f32) = tuning_rule.into();
 
+        let pu_s = self.pu_ms / 1000.0;
+
         let kp = self.ku / pdiv;
-        let ki = kp / (self.pu_ms / idiv);
-        let kd = kp / (self.pu_ms / ddiv);
+        let ki = kp / (pu_s / idiv);
+        let kd = kp * (pu_s / ddiv);
 
         (kp, ki, kd)
     }
@@ -350,7 +354,7 @@ fn main() {
 
             match status {
                 PIDAutotuneState::Succeeded => {
-                    let tuning_rules: [TuningRule; 9] = [
+                    let tuning_rules: [TuningRule; 10] = [
                         TuningRule::ZeiglerNichols,
                         TuningRule::TyreusLuyben,
                         TuningRule::CianconeMarlin,
@@ -359,6 +363,7 @@ fn main() {
                         TuningRule::NoOvershoot,
                         TuningRule::Brewing,
                         TuningRule::HighMass,
+                        TuningRule::Marlin,
                         TuningRule::Flat,
                     ];
 
@@ -382,7 +387,7 @@ fn main() {
         }
     }
 
-    let choice = TuningRule::HighMass;
+    let choice = TuningRule::Marlin;
 
     println!("\n\nPerforming Genetic Fine Tuning using {:?}", choice);
 
@@ -539,7 +544,9 @@ fn main() {
                     break;
                 }
 
-                if points.len() == (points.capacity() / 2) && (delta_mean * 2.0) > (1.25 * last_score_mid) {
+                let score_mid = (delta_mean * 2.0).powi(2);
+
+                if points.len() == (points.capacity() / 2) && score_mid > (1.25 * last_score_mid) {
                     delta_mean *= 2.0;
                     break;
                 } else {

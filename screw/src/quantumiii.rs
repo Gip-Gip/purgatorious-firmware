@@ -19,9 +19,12 @@ const MOTOR_TO_SCREW_RPM_MULT: f32 = 15.625 / 175.0;
 const TO_SPEED_MULT: f32 = 100.0 / 15.625;
 
 static PARAM_SET_SPEED: &str = "0001";
+static PARAM_GET_SPEED: &str = "0002";
 static PARAM_ZERO_PAGE_START: &str = "0001";
 static PARAM_PERMISSIONS: &str = "0100";
 static PARAM_EXTERNAL_TRIP: &str = "1034";
+static PARAM_TRIPPED: &str = "0010";
+static PARAM_RESET: &str = "1521";
 
 const UART_TIMEOUT_MS: u64 = 100;
 const RESET_WAIT_MS: u64 = 100;
@@ -196,9 +199,6 @@ impl QuantumIII {
     }
 
     pub fn init(&mut self) -> Result<(), Error> {
-        // Enable clearance for security level 1
-        self.write_param("0100", 149)?;
-
         Ok(())
     }
 
@@ -309,17 +309,11 @@ impl QuantumIII {
         Ok(())
     }
 
+    #[inline]
     pub fn set_screw_rpm(&mut self, rpm: f32) -> Result<(), Error> {
         let speed = rpm * TO_SPEED_MULT;
 
         self.write_param(PARAM_SET_SPEED, speed as i16)
-    }
-
-    pub fn attempt_trip_reset(&mut self) -> Result<(), Error> {
-        // Escalate permissions to clear fault
-        self.write_param(PARAM_PERMISSIONS, 200)?;
-        self.write_param(PARAM_EXTERNAL_TRIP, 0)?;
-        self.write_param(PARAM_PERMISSIONS, 149)
     }
 
     pub fn read_zero_page(&mut self) -> Result<ZeroPage, Error> {
@@ -337,5 +331,36 @@ impl QuantumIII {
             ],
             drive_ok: self.read_next_param()? > 0,
         })
+    }
+
+    #[inline]
+    pub fn elevate_perms(&mut self) -> Result<(), Error> {
+        self.write_param(PARAM_PERMISSIONS, 200)
+    }
+
+    #[inline]
+    pub fn reduce_perms(&mut self) -> Result<(), Error> {
+        self.write_param(PARAM_PERMISSIONS, 0)
+    }
+
+    #[inline]
+    pub fn is_tripped(&mut self) -> Result<bool, Error> {
+        Ok(self.read_param(PARAM_TRIPPED)? > 0)
+    }
+
+    #[inline]
+    pub fn trip(&mut self) -> Result<(), Error> {
+        self.write_param(PARAM_EXTERNAL_TRIP, 1)
+    }
+
+    #[inline]
+    /// Ensure to not contact the drive for a minimum of 10 seconds after resetting
+    pub fn reset_drive(&mut self) -> Result<(), Error> {
+        self.write_param(PARAM_RESET, 1)
+    }
+
+    #[inline]
+    pub fn motor_speed(&mut self) -> Result<f32, Error> {
+        Ok(self.read_param(PARAM_GET_SPEED)? as f32)
     }
 }
