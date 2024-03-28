@@ -23,7 +23,6 @@ static PARAM_GET_SPEED: &str = "0002";
 static PARAM_ZERO_PAGE_START: &str = "0001";
 static PARAM_PERMISSIONS: &str = "0100";
 static PARAM_EXTERNAL_TRIP: &str = "1034";
-static PARAM_TRIPPED: &str = "0010";
 static PARAM_RESET: &str = "1521";
 
 const UART_TIMEOUT_MS: u64 = 100;
@@ -341,11 +340,6 @@ impl QuantumIII {
     #[inline]
     pub fn reduce_perms(&mut self) -> Result<(), Error> {
         self.write_param(PARAM_PERMISSIONS, 0)
-    }
-
-    #[inline]
-    pub fn is_tripped(&mut self) -> Result<bool, Error> {
-        Ok(self.read_param(PARAM_TRIPPED)? > 0)
     }
 
     #[inline]

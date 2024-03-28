@@ -1,18 +1,22 @@
 //! Interface with the screw motor controller
 
 use std::{
-    f32::NAN, fs::File, io::Write, sync::{Arc, Mutex}, time::{Duration, Instant}
+    f32::NAN,
+    fs::File,
+    io::Write,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
 };
 
 use q3_backup::{Param, PARAMS};
 use quantumiii::QuantumIII;
 use screw::*;
-use shared::{sleep_till, URAP_SCREW_PATH, URAP_WATCHDOG_PATH, retry_thrice};
+use shared::{retry_thrice, sleep_till, URAP_SCREW_PATH, URAP_WATCHDOG_PATH};
 use urap::*;
 use watchdog::ADDR_ESTOP;
 
-mod quantumiii;
 mod q3_backup;
+mod quantumiii;
 
 const Q3_ADDR: u8 = 1;
 static UART_PATH: &str = "/dev/ttyAMA0";
@@ -79,7 +83,8 @@ fn main() {
                     }
 
                     r
-                }).unwrap();
+                })
+                .unwrap();
             }
 
             let i = u32::from_ne_bytes(registers_lk[ADDR_BACKUP_Q3]) as usize;
@@ -102,7 +107,8 @@ fn main() {
                     }
 
                     r
-                }).unwrap();
+                })
+                .unwrap();
             } else {
                 if let Some(backup_buffer) = &mut backup_buffer {
                     let mut param = PARAMS[i].clone();
@@ -115,7 +121,8 @@ fn main() {
                             }
 
                             r
-                        }).unwrap()
+                        })
+                        .unwrap(),
                     );
 
                     backup_buffer.push(param);
@@ -136,7 +143,8 @@ fn main() {
                         }
 
                         r
-                    }).unwrap();
+                    })
+                    .unwrap();
 
                     q3state = Q3States::Okay;
                 }
@@ -148,7 +156,8 @@ fn main() {
                         }
 
                         r
-                    }).unwrap();
+                    })
+                    .unwrap();
                     if speed == 0.0 {
                         retry_thrice(|| {
                             let r = quantumiii.reset_drive();
@@ -157,10 +166,14 @@ fn main() {
                             }
 
                             r
-                        }).unwrap();
+                        })
+                        .unwrap();
                     }
 
-                    q3state = Q3States::Booting(now.checked_add(Duration::from_secs(DELAY_Q3_BOOT_S)).unwrap());
+                    q3state = Q3States::Booting(
+                        now.checked_add(Duration::from_secs(DELAY_Q3_BOOT_S))
+                            .unwrap(),
+                    );
                 }
 
                 _ => {}
@@ -189,7 +202,8 @@ fn main() {
                     }
 
                     r
-                }).unwrap()
+                })
+                .unwrap()
             }
 
             // Try thrice, hopefully this doesn't fail but we can't afford to just
@@ -205,7 +219,8 @@ fn main() {
                 }
 
                 r
-            }).unwrap();
+            })
+            .unwrap();
 
             // Luck permitting all queries should take about 157ms (18ms + 22ms + 117ms)
 
@@ -270,10 +285,11 @@ fn main() {
                         }
 
                         r
-                    }).unwrap();
+                    })
+                    .unwrap();
 
                     q3state = Q3States::Tripped;
-                },
+                }
                 Q3States::Booting(dur) => {
                     if dur.saturating_duration_since(now).is_zero() {
                         q3state = Q3States::Standby;

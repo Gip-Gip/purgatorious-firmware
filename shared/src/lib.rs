@@ -16,8 +16,10 @@ pub fn sleep_till(instant: Instant) {
 }
 
 #[inline]
-pub fn retry_thrice<O,E,F>(mut x: F) -> Result<O,E>
-where F: FnMut()->Result<O,E> {
+pub fn retry_thrice<O, E, F>(mut x: F) -> Result<O, E>
+where
+    F: FnMut() -> Result<O, E>,
+{
     for _ in 0..2 {
         match x() {
             Ok(o) => {

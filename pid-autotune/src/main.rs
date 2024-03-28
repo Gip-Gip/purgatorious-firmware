@@ -598,7 +598,9 @@ fn main() {
             println!(
                 "New Ideal kPID @ {:.0}C:\nkp={:.3e}\nki={:.3e}\nkd={:.3e}",
                 urap_i2c.read_f32(ADDR_AMBIENT_C as u16).unwrap_or(0.0),
-                ideal_pid.kp, ideal_pid.ki, ideal_pid.kd
+                ideal_pid.kp,
+                ideal_pid.ki,
+                ideal_pid.kd
             );
         }
 
