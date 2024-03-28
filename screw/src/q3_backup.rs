@@ -1,10 +1,17 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, PartialOrd)]
 pub struct Param {
     pub id: &'static str,
     pub val: Option<i16>,
     pub desc: &'static str,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, PartialOrd)]
+pub struct ParamD {
+    pub id: String,
+    pub val: Option<i16>,
+    pub desc: String,
 }
 
 pub const PARAMS: [Param; 231] = [

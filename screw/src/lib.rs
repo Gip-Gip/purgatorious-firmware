@@ -7,3 +7,4 @@ pub const ADDR_DRIVE_ENBL: usize = 0x0006;
 pub const ADDR_LINE_V: usize = 0x0007;
 pub const ADDR_LINE_A: usize = 0x0008;
 pub const ADDR_BACKUP_Q3: usize = 0x0009;
+pub const ADDR_RESTORE_Q3: usize = 0x000A;

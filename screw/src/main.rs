@@ -3,7 +3,6 @@
 use std::{
     f32::NAN,
     fs::File,
-    io::Write,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -15,6 +14,8 @@ use shared::{retry_thrice, sleep_till, URAP_SCREW_PATH, URAP_WATCHDOG_PATH};
 use urap::*;
 use watchdog::ADDR_ESTOP;
 
+use crate::q3_backup::ParamD;
+
 mod q3_backup;
 mod quantumiii;
 
@@ -22,15 +23,15 @@ const Q3_ADDR: u8 = 1;
 static UART_PATH: &str = "/dev/ttyAMA0";
 static BACKUP_FILE: &str = "/opt/firmware/q3_backup.json";
 
-const URAP_REG_COUNT: usize = 0x0A;
+const URAP_REG_COUNT: usize = 0x0B;
 
 const POLL_MS: u64 = 500;
 const PROPOGATION_POLL_MS: u64 = 2000;
 
 const URAP_WRITE_PROTECT: [bool; URAP_REG_COUNT] =
-    [true, false, true, true, true, true, true, true, true, false];
+    [true, false, true, true, true, true, true, true, true, false, false];
 
-const DELAY_Q3_BOOT_S: u64 = 10;
+const DELAY_Q3_BOOT_S: u64 = 5;
 
 fn main() {
     let mut urap_watchdog = UrapMaster::new(URAP_WATCHDOG_PATH).unwrap();
@@ -47,6 +48,7 @@ fn main() {
     let mut propogation_check = Instant::now();
 
     let mut backup_buffer: Option<Vec<Param>> = None;
+    let mut restore_buffer: Option<Vec<ParamD>> = None;
 
     #[derive(Debug, PartialEq)]
     enum Q3States {
@@ -92,11 +94,9 @@ fn main() {
             if i == PARAMS.len() {
                 registers_lk[ADDR_BACKUP_Q3] = 0_u32.to_ne_bytes();
 
-                let mut backup_file = File::create(BACKUP_FILE).unwrap();
+                let backup_file = File::create(BACKUP_FILE).unwrap();
 
-                let json = serde_json::to_string(&backup_buffer.as_ref().unwrap()).unwrap();
-
-                backup_file.write_all(&json.as_bytes()).unwrap();
+                serde_json::to_writer(backup_file, backup_buffer.as_ref().unwrap()).unwrap();
 
                 backup_buffer = None;
 
@@ -130,6 +130,58 @@ fn main() {
                 registers_lk[ADDR_BACKUP_Q3] = ((i as u32) + 1).to_ne_bytes();
             }
         }
+        
+        // Restore the quantum 3's parameters if requested
+        if registers_lk[ADDR_RESTORE_Q3] != [0; URAP_REG_WIDTH] {
+            q3state = Q3States::Standby;
+            urap_watchdog.write_u32(ADDR_ESTOP, 1).unwrap();
+
+            if restore_buffer.is_none() {
+                let file = File::open(BACKUP_FILE).unwrap();
+                restore_buffer = Some(serde_json::from_reader(file).unwrap());
+
+                registers_lk[ADDR_RESTORE_Q3] = 0_u32.to_ne_bytes();
+                retry_thrice(|| {
+                    let r = quantumiii.elevate_perms();
+                    if r.is_err() {
+                        quantumiii.fault_reset().unwrap();
+                    }
+
+                    r
+                })
+                .unwrap();
+            }
+
+            let i = u32::from_ne_bytes(registers_lk[ADDR_RESTORE_Q3]) as usize;
+
+            if let Some(restore_buffer) = &restore_buffer {
+                if i == restore_buffer.len() {
+                    registers_lk[ADDR_RESTORE_Q3] = 0_u32.to_ne_bytes();
+
+                    retry_thrice(|| {
+                        let r = quantumiii.reduce_perms();
+                        if r.is_err() {
+                            quantumiii.fault_reset().unwrap();
+                        }
+
+                        r
+                    })
+                    .unwrap();
+                } else {
+                    let param = &restore_buffer[i]; 
+                    retry_thrice(|| {
+                        let r = quantumiii.write_param(&param.id, param.val.unwrap_or(0));
+                        if r.is_err() {
+                            quantumiii.fault_reset().unwrap();
+                        }
+
+                        r
+                    })
+                    .unwrap();
+                    registers_lk[ADDR_RESTORE_Q3] = ((i as u32) + 1).to_ne_bytes();
+                }
+            }
+        }
 
         // Normal Operation
         if urap_watchdog.read_u32(ADDR_ESTOP).unwrap_or(1) == 0 {
@@ -149,8 +201,8 @@ fn main() {
                     q3state = Q3States::Okay;
                 }
                 Q3States::Tripped => {
-                    let speed = retry_thrice(|| {
-                        let r = quantumiii.motor_speed();
+                    retry_thrice(|| {
+                        let r = quantumiii.reset_drive();
                         if r.is_err() {
                             quantumiii.fault_reset().unwrap();
                         }
@@ -158,18 +210,6 @@ fn main() {
                         r
                     })
                     .unwrap();
-                    if speed == 0.0 {
-                        retry_thrice(|| {
-                            let r = quantumiii.reset_drive();
-                            if r.is_err() {
-                                quantumiii.fault_reset().unwrap();
-                            }
-
-                            r
-                        })
-                        .unwrap();
-                    }
-
                     q3state = Q3States::Booting(
                         now.checked_add(Duration::from_secs(DELAY_Q3_BOOT_S))
                             .unwrap(),
@@ -177,6 +217,31 @@ fn main() {
                 }
 
                 _ => {}
+            }
+        
+            // Check the estop button
+            let estop_depressed = retry_thrice(|| {
+                let r = quantumiii.estop_depressed();
+                if r.is_err() {
+                    quantumiii.fault_reset().unwrap();
+                }
+
+                r
+            })
+            .unwrap();
+
+            if estop_depressed {
+                retry_thrice(|| {
+                    let r = quantumiii.trip();
+                    if r.is_err() {
+                        quantumiii.fault_reset().unwrap();
+                    }
+
+                    r
+                })
+                .unwrap();
+
+                q3state = Q3States::Tripped;
             }
 
             if q3state != Q3States::Okay {

@@ -19,11 +19,12 @@ const MOTOR_TO_SCREW_RPM_MULT: f32 = 15.625 / 175.0;
 const TO_SPEED_MULT: f32 = 100.0 / 15.625;
 
 static PARAM_SET_SPEED: &str = "0001";
-static PARAM_GET_SPEED: &str = "0002";
 static PARAM_ZERO_PAGE_START: &str = "0001";
 static PARAM_PERMISSIONS: &str = "0100";
 static PARAM_EXTERNAL_TRIP: &str = "1034";
-static PARAM_RESET: &str = "1521";
+static PARAM_ESTOP_BUTTON: &str = "1521";
+static PARAM_RESET: &str = "1035";
+const PARAM_RESET_VAL: i16 = 255;
 
 const UART_TIMEOUT_MS: u64 = 100;
 const RESET_WAIT_MS: u64 = 100;
@@ -43,7 +44,7 @@ fn bcc(data: &[u8]) -> u8 {
 }
 
 #[repr(u8)]
-#[derive(Primitive, Clone, Debug)]
+#[derive(Primitive, Clone, Debug, PartialEq)]
 pub enum Q3TripCode {
     NoFault = 0,
     Unknown = 1,
@@ -198,7 +199,7 @@ impl QuantumIII {
     }
 
     pub fn init(&mut self) -> Result<(), Error> {
-        Ok(())
+        self.reduce_perms()
     }
 
     pub fn write_param(&mut self, param: &str, data: i16) -> Result<(), Error> {
@@ -333,28 +334,39 @@ impl QuantumIII {
     }
 
     #[inline]
+    pub fn estop_depressed(&mut self) -> Result<bool, Error> {
+        Ok(self.read_param(PARAM_ESTOP_BUTTON)? != 0)
+    }
+
+    #[inline]
     pub fn elevate_perms(&mut self) -> Result<(), Error> {
         self.write_param(PARAM_PERMISSIONS, 200)
     }
 
     #[inline]
     pub fn reduce_perms(&mut self) -> Result<(), Error> {
-        self.write_param(PARAM_PERMISSIONS, 0)
+        self.write_param(PARAM_PERMISSIONS, 149)
     }
 
     #[inline]
     pub fn trip(&mut self) -> Result<(), Error> {
-        self.write_param(PARAM_EXTERNAL_TRIP, 1)
+        // Only trip if we need to, 
+        if self.read_zero_page()?.drive_ok {
+            self.elevate_perms()?;
+            self.write_param(PARAM_EXTERNAL_TRIP, 1)?;
+            self.reduce_perms()?;
+        }
+
+        Ok(())
     }
 
     #[inline]
     /// Ensure to not contact the drive for a minimum of 10 seconds after resetting
     pub fn reset_drive(&mut self) -> Result<(), Error> {
-        self.write_param(PARAM_RESET, 1)
-    }
-
-    #[inline]
-    pub fn motor_speed(&mut self) -> Result<f32, Error> {
-        Ok(self.read_param(PARAM_GET_SPEED)? as f32)
+        self.elevate_perms()?;
+        // Do not forget to clear the trip
+        self.write_param(PARAM_EXTERNAL_TRIP, 0)?;
+        self.write_param(PARAM_RESET, PARAM_RESET_VAL)
+        // We will now no longer expect communication from the drive
     }
 }
