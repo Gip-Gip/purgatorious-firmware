@@ -59,11 +59,9 @@ impl<'a> Ads1113<'a> {
         let sample = CAL_FSO_KPA / raw_value;
 
         let sample_weight = 1.0 / (self.calstate.cal_samples_hi as f32);
-        let conversion_multiplier_weight =
-            ((self.calstate.cal_samples_hi - 1) as f32) / (self.calstate.cal_samples_hi as f32);
 
-        self.calstate.conversion_multiplier = (sample * sample_weight)
-            + (self.calstate.conversion_multiplier * conversion_multiplier_weight);
+        self.calstate.conversion_multiplier = sample * sample_weight
+            + self.calstate.conversion_multiplier * (1.0 - sample_weight);
 
         Ok(raw_value * self.calstate.conversion_multiplier)
     }
@@ -73,11 +71,9 @@ impl<'a> Ads1113<'a> {
         let raw_value = self.read_i16(0)? as f32;
 
         let sample_weight = 1.0 / (self.calstate.cal_samples_lo as f32);
-        let zero_base_weight =
-            ((self.calstate.cal_samples_lo - 1) as f32) / (self.calstate.cal_samples_lo as f32);
 
         self.calstate.zero_base =
-            (raw_value * sample_weight) + (self.calstate.zero_base * zero_base_weight);
+            raw_value * sample_weight + self.calstate.zero_base * (1.0 - sample_weight);
 
         Ok(raw_value - self.calstate.zero_base)
     }

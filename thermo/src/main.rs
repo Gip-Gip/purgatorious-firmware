@@ -452,12 +452,12 @@ fn main() {
             let pwr_z5_weight = 1.0 / pwr_z5_samples;
             let pwr_z6_weight = 1.0 / pwr_z6_samples;
 
-            pwr_z1_mean = pwr_z1 * pwr_z1_weight + pwr_z1_mean * 1.0 - pwr_z1_weight;
-            pwr_z2_mean = pwr_z1 * pwr_z2_weight + pwr_z2_mean * 1.0 - pwr_z2_weight;
-            pwr_z3_mean = pwr_z1 * pwr_z3_weight + pwr_z3_mean * 1.0 - pwr_z3_weight;
-            pwr_z4_mean = pwr_z1 * pwr_z4_weight + pwr_z4_mean * 1.0 - pwr_z4_weight;
-            pwr_z5_mean = pwr_z1 * pwr_z5_weight + pwr_z5_mean * 1.0 - pwr_z5_weight;
-            pwr_z6_mean = pwr_z1 * pwr_z6_weight + pwr_z6_mean * 1.0 - pwr_z6_weight;
+            pwr_z1_mean = pwr_z1 * pwr_z1_weight + pwr_z1_mean * (1.0 - pwr_z1_weight);
+            pwr_z2_mean = pwr_z1 * pwr_z2_weight + pwr_z2_mean * (1.0 - pwr_z2_weight);
+            pwr_z3_mean = pwr_z1 * pwr_z3_weight + pwr_z3_mean * (1.0 - pwr_z3_weight);
+            pwr_z4_mean = pwr_z1 * pwr_z4_weight + pwr_z4_mean * (1.0 - pwr_z4_weight);
+            pwr_z5_mean = pwr_z1 * pwr_z5_weight + pwr_z5_mean * (1.0 - pwr_z5_weight);
+            pwr_z6_mean = pwr_z1 * pwr_z6_weight + pwr_z6_mean * (1.0 - pwr_z6_weight);
 
             // When the motor is stopped the current reads negative, ignore this.
             let cur_total_a = cur_ideal_a + motor_line_a.min(0.0);
