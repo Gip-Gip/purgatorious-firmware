@@ -1,7 +1,7 @@
 //! Temperature PID controller for all the heater zones
 
 use std::{
-    intrinsics::powf32, path::Path, sync::{Arc, Mutex}, thread::sleep, time::{Duration, Instant}
+    path::Path, sync::{Arc, Mutex}, thread::sleep, time::{Duration, Instant}
 };
 use watchdog::ADDR_ESTOP;
 
@@ -438,27 +438,6 @@ fn main() {
                     + pwr_z6 * CUR_Z6_A
             };
 
-            pwr_z1_samples += 1.0;
-            pwr_z2_samples += 1.0;
-            pwr_z3_samples += 1.0;
-            pwr_z4_samples += 1.0;
-            pwr_z5_samples += 1.0;
-            pwr_z6_samples += 1.0;
-
-            let pwr_z1_weight = 1.0 / pwr_z1_samples;
-            let pwr_z2_weight = 1.0 / pwr_z2_samples;
-            let pwr_z3_weight = 1.0 / pwr_z3_samples;
-            let pwr_z4_weight = 1.0 / pwr_z4_samples;
-            let pwr_z5_weight = 1.0 / pwr_z5_samples;
-            let pwr_z6_weight = 1.0 / pwr_z6_samples;
-
-            pwr_z1_mean = pwr_z1 * pwr_z1_weight + pwr_z1_mean * (1.0 - pwr_z1_weight);
-            pwr_z2_mean = pwr_z1 * pwr_z2_weight + pwr_z2_mean * (1.0 - pwr_z2_weight);
-            pwr_z3_mean = pwr_z1 * pwr_z3_weight + pwr_z3_mean * (1.0 - pwr_z3_weight);
-            pwr_z4_mean = pwr_z1 * pwr_z4_weight + pwr_z4_mean * (1.0 - pwr_z4_weight);
-            pwr_z5_mean = pwr_z1 * pwr_z5_weight + pwr_z5_mean * (1.0 - pwr_z5_weight);
-            pwr_z6_mean = pwr_z1 * pwr_z6_weight + pwr_z6_mean * (1.0 - pwr_z6_weight);
-
             // When the motor is stopped the current reads negative, ignore this.
             let cur_total_a = cur_ideal_a + motor_line_a.min(0.0);
 
@@ -481,6 +460,27 @@ fn main() {
             let pwr_z4 = pwr_z4 * cur_multiplier;
             let pwr_z5 = pwr_z5 * cur_multiplier;
             let pwr_z6 = pwr_z6 * cur_multiplier;
+
+            pwr_z1_samples += 1.0;
+            pwr_z2_samples += 1.0;
+            pwr_z3_samples += 1.0;
+            pwr_z4_samples += 1.0;
+            pwr_z5_samples += 1.0;
+            pwr_z6_samples += 1.0;
+
+            let pwr_z1_weight = 1.0 / pwr_z1_samples;
+            let pwr_z2_weight = 1.0 / pwr_z2_samples;
+            let pwr_z3_weight = 1.0 / pwr_z3_samples;
+            let pwr_z4_weight = 1.0 / pwr_z4_samples;
+            let pwr_z5_weight = 1.0 / pwr_z5_samples;
+            let pwr_z6_weight = 1.0 / pwr_z6_samples;
+
+            pwr_z1_mean = pwr_z1 * pwr_z1_weight + pwr_z1_mean * (1.0 - pwr_z1_weight);
+            pwr_z2_mean = pwr_z2 * pwr_z2_weight + pwr_z2_mean * (1.0 - pwr_z2_weight);
+            pwr_z3_mean = pwr_z3 * pwr_z3_weight + pwr_z3_mean * (1.0 - pwr_z3_weight);
+            pwr_z4_mean = pwr_z4 * pwr_z4_weight + pwr_z4_mean * (1.0 - pwr_z4_weight);
+            pwr_z5_mean = pwr_z5 * pwr_z5_weight + pwr_z5_mean * (1.0 - pwr_z5_weight);
+            pwr_z6_mean = pwr_z6 * pwr_z6_weight + pwr_z6_mean * (1.0 - pwr_z6_weight);
 
             for (instant_on, instant_off, ssr_heat, pwr_mean, pwr_samples) in [
                 (&mut instant_z1_on, &mut instant_z1_off, &mut ssr_z1_heat, &mut pwr_z1_mean, &mut pwr_z1_samples),
