@@ -216,9 +216,16 @@ impl<'a> eframe::App for MyApp {
             mut motor_a,
             mut motor_v,
             mut line_v,
+            mut pwr_z1,
+            mut pwr_z2,
+            mut pwr_z3,
+            mut pwr_z4,
+            mut pwr_z5,
+            mut pwr_z6,
         ) = (
             0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32,
-            0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32,
+            0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32,
+            0_f32, 0_f32, 0_f32, 0_f32,
         );
 
         let temps: [(&mut f32, u16); 9] = [
@@ -233,7 +240,7 @@ impl<'a> eframe::App for MyApp {
             (&mut barrel_kpa, ADDR_BARREL_KPA as u16),
         ];
 
-        let thermo_vars: [(&mut f32, u16); 7] = [
+        let thermo_vars: [(&mut f32, u16); 13] = [
             (&mut ts1_c, ADDR_SET_Z1_C as u16),
             (&mut ts2_c, ADDR_SET_Z2_C as u16),
             (&mut ts3_c, ADDR_SET_Z3_C as u16),
@@ -241,6 +248,12 @@ impl<'a> eframe::App for MyApp {
             (&mut ts5_c, ADDR_SET_Z5_C as u16),
             (&mut ts6_c, ADDR_SET_Z6_C as u16),
             (&mut thermo_pwr_w, ADDR_THERMO_PWR_W as u16),
+            (&mut pwr_z1, ADDR_Z1_PWR as u16),
+            (&mut pwr_z2, ADDR_Z2_PWR as u16),
+            (&mut pwr_z3, ADDR_Z3_PWR as u16),
+            (&mut pwr_z4, ADDR_Z4_PWR as u16),
+            (&mut pwr_z5, ADDR_Z5_PWR as u16),
+            (&mut pwr_z6, ADDR_Z6_PWR as u16),
         ];
 
         let motor_stats: [(&mut f32, u16); 6] = [
@@ -311,6 +324,12 @@ impl<'a> eframe::App for MyApp {
             motor_a,
             motor_v,
             line_v,
+            pwr_z1,
+            pwr_z2,
+            pwr_z3,
+            pwr_z4,
+            pwr_z5,
+            pwr_z6,
         ) = (
             t1_c,
             t2_c,
@@ -334,6 +353,12 @@ impl<'a> eframe::App for MyApp {
             motor_a,
             motor_v,
             line_v,
+            pwr_z1,
+            pwr_z2,
+            pwr_z3,
+            pwr_z4,
+            pwr_z5,
+            pwr_z6,
         );
 
         // True if not zero
@@ -364,19 +389,19 @@ impl<'a> eframe::App for MyApp {
 
                 // Heater Zones
                 ui.horizontal(|ui| {
-                    let zones: [(&str, f32, f32, &Vec<[f64; 2]>); 6] = [
-                        ("Zone 1", t1_c, ts1_c, &self.plot_t1_xy),
-                        ("Zone 2", t2_c, ts2_c, &self.plot_t2_xy),
-                        ("Zone 3", t3_c, ts3_c, &self.plot_t3_xy),
-                        ("Zone 4", t4_c, ts4_c, &self.plot_t4_xy),
-                        ("Zone 5", t5_c, ts5_c, &self.plot_t5_xy),
-                        ("Zone 6", t6_c, ts6_c, &self.plot_t6_xy),
+                    let zones: [(&str, f32, f32, f32, &Vec<[f64; 2]>); 6] = [
+                        ("Zone 1", t1_c, ts1_c, pwr_z1, &self.plot_t1_xy),
+                        ("Zone 2", t2_c, ts2_c, pwr_z2, &self.plot_t2_xy),
+                        ("Zone 3", t3_c, ts3_c, pwr_z3, &self.plot_t3_xy),
+                        ("Zone 4", t4_c, ts4_c, pwr_z4, &self.plot_t4_xy),
+                        ("Zone 5", t5_c, ts5_c, pwr_z5, &self.plot_t5_xy),
+                        ("Zone 6", t6_c, ts6_c, pwr_z6, &self.plot_t6_xy),
                     ];
 
                     let mut responses: Vec<InnerResponse<Response>> =
                         Vec::with_capacity(zones.len());
 
-                    for (i, (name, act_c, set_c, act_xy)) in zones.iter().enumerate() {
+                    for (i, (name, act_c, set_c, pwr, act_xy)) in zones.iter().enumerate() {
                         let response = ui.vertical(|ui| {
                             let header_rt = RichText::new(*name).strong().size(18.0);
 
@@ -394,6 +419,11 @@ impl<'a> eframe::App for MyApp {
                                 .color(actual_temp_color)
                                 .monospace()
                                 .size(18.0);
+
+                            let power_rt = RichText::new(format!("Power: {:03.0}%", pwr * 100.0))
+                                .monospace()
+                                .size(18.0);
+
                             ui.add(Label::new(header_rt).wrap(true).selectable(false));
                             ui.add(Label::new(act_temp_rt).wrap(true).selectable(false));
                             ui.horizontal(|ui| {
@@ -415,6 +445,7 @@ impl<'a> eframe::App for MyApp {
                                 ui.add(Label::new(set_temp_val_rt).wrap(true).selectable(false));
                                 ui.add(Label::new(set_temp_post_rt).wrap(true).selectable(false));
                             });
+                            ui.add(Label::new(power_rt).wrap(true).selectable(false));
 
                             let plotpoints: PlotPoints = (*act_xy).clone().into();
 

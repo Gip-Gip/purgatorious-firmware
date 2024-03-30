@@ -60,8 +60,8 @@ impl<'a> Ads1113<'a> {
 
         let sample_weight = 1.0 / (self.calstate.cal_samples_hi as f32);
 
-        self.calstate.conversion_multiplier = sample * sample_weight
-            + self.calstate.conversion_multiplier * (1.0 - sample_weight);
+        self.calstate.conversion_multiplier =
+            sample * sample_weight + self.calstate.conversion_multiplier * (1.0 - sample_weight);
 
         Ok(raw_value * self.calstate.conversion_multiplier)
     }

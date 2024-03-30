@@ -78,7 +78,7 @@ impl Into<(f32, f32, f32)> for TuningRule {
             TuningRule::SomeOvershoot => (60.0, 40.0, 60.0),
             TuningRule::NoOvershoot => (100.0, 40.0, 60.0),
             TuningRule::Brewing => (2.5, 6.0, 380.0),
-            TuningRule::HighMass => (2.212, 5.174, 5.628e-3),
+            TuningRule::HighMass => (1.839, 8.645, 6.349),
             TuningRule::Marlin => (1.7, 0.5, 8.0),
             TuningRule::Flat => (1.0, 1.0, 1.0),
         }
@@ -578,23 +578,12 @@ fn main() {
             ascore.partial_cmp(bscore).unwrap()
         });
 
-        let (parent_1_score, parent_1_pid) = children[0];
-        let (parent_2_score, parent_2_pid) = children[1];
+        let (parent_score, parent_pid) = children[0];
+        
+        ideal_pid = parent_pid;
+        ideal_pid.reset_integral_term();
 
-        println!(
-            "Parent 1 score: {}, Parent 2 score: {}",
-            parent_1_score, parent_2_score
-        );
-
-        let kp = (parent_1_pid.kp + parent_2_pid.kp) * 0.5;
-        let ki = (parent_1_pid.ki + parent_2_pid.ki) * 0.5;
-        let kd = (parent_1_pid.kd + parent_2_pid.kd) * 0.5;
-
-        ideal_pid.p(kp, 1.0);
-        ideal_pid.i(ki, 1.0);
-        ideal_pid.d(kd, 1.0);
-
-        if last_score > parent_1_score {
+        if last_score > parent_score {
             println!(
                 "New Ideal kPID @ {:.0}C:\nkp={:.3e}\nki={:.3e}\nkd={:.3e}",
                 urap_i2c.read_f32(ADDR_AMBIENT_C as u16).unwrap_or(0.0),
@@ -605,10 +594,10 @@ fn main() {
         }
 
         // Keep going until we can't acheive a 1% improvement
-        if last_score != f64::INFINITY && (parent_1_score / last_score) >= 0.99 {
+        if last_score != f64::INFINITY && (parent_score / last_score) >= 0.99 {
             break;
         } else {
-            last_score = parent_1_score;
+            last_score = parent_score;
         }
     }
 

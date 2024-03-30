@@ -28,8 +28,9 @@ const URAP_REG_COUNT: usize = 0x0B;
 const POLL_MS: u64 = 500;
 const PROPOGATION_POLL_MS: u64 = 2000;
 
-const URAP_WRITE_PROTECT: [bool; URAP_REG_COUNT] =
-    [true, false, true, true, true, true, true, true, true, false, false];
+const URAP_WRITE_PROTECT: [bool; URAP_REG_COUNT] = [
+    true, false, true, true, true, true, true, true, true, false, false,
+];
 
 const DELAY_Q3_BOOT_S: u64 = 5;
 
@@ -130,7 +131,7 @@ fn main() {
                 registers_lk[ADDR_BACKUP_Q3] = ((i as u32) + 1).to_ne_bytes();
             }
         }
-        
+
         // Restore the quantum 3's parameters if requested
         if registers_lk[ADDR_RESTORE_Q3] != [0; URAP_REG_WIDTH] {
             q3state = Q3States::Standby;
@@ -168,7 +169,7 @@ fn main() {
                     })
                     .unwrap();
                 } else {
-                    let param = &restore_buffer[i]; 
+                    let param = &restore_buffer[i];
                     retry_thrice(|| {
                         let r = quantumiii.write_param(&param.id, param.val.unwrap_or(0));
                         if r.is_err() {
@@ -218,7 +219,7 @@ fn main() {
 
                 _ => {}
             }
-        
+
             // Check the estop button
             let estop_depressed = retry_thrice(|| {
                 let r = quantumiii.estop_depressed();

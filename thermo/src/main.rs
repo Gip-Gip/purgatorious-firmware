@@ -1,7 +1,10 @@
 //! Temperature PID controller for all the heater zones
 
 use std::{
-    path::Path, sync::{Arc, Mutex}, thread::sleep, time::{Duration, Instant}
+    path::Path,
+    sync::{Arc, Mutex},
+    thread::sleep,
+    time::{Duration, Instant},
 };
 use watchdog::ADDR_ESTOP;
 
@@ -48,7 +51,8 @@ const CUR_Z6_A: f32 = 1.6;
 
 const FAN_ENABLE_C: f32 = 10.0;
 
-const LOOP_TIME_MS: u64 = PWM_PERIOD_MIN_MS;
+const LOOP_TIME_MS: u64 = 10;
+const POLL_PID_MS: u64 = 100;
 
 struct LinearEquation {
     a: f32,
@@ -184,12 +188,21 @@ fn main() {
         .unwrap();
     let mut instant_z6_off = instant_z6_on.clone();
 
+    let mut poll_pid = Instant::now();
+
     let mut pwr_z1_mean: f32 = 0.0;
     let mut pwr_z2_mean: f32 = 0.0;
     let mut pwr_z3_mean: f32 = 0.0;
     let mut pwr_z4_mean: f32 = 0.0;
     let mut pwr_z5_mean: f32 = 0.0;
     let mut pwr_z6_mean: f32 = 0.0;
+    
+    let mut pwr_z1: f32 = 0.0;
+    let mut pwr_z2: f32 = 0.0;
+    let mut pwr_z3: f32 = 0.0;
+    let mut pwr_z4: f32 = 0.0;
+    let mut pwr_z5: f32 = 0.0;
+    let mut pwr_z6: f32 = 0.0;
 
     let mut pwr_z1_samples: f32 = 0.0;
     let mut pwr_z2_samples: f32 = 0.0;
@@ -408,7 +421,7 @@ fn main() {
                 false => ssr_z4_fan.set_low(),
             }
 
-            let (pwr_z1, pwr_z2, pwr_z3, pwr_z4, pwr_z5, pwr_z6) =
+            (pwr_z1, pwr_z2, pwr_z3, pwr_z4, pwr_z5, pwr_z6) =
                 if registers_lk[ADDR_ENBL_PWR_OVERRIDE] != [0; URAP_REG_WIDTH] {
                     (
                         f32::from_ne_bytes(registers_lk[ADDR_Z1_PWR]).max(0.0),
@@ -418,7 +431,16 @@ fn main() {
                         f32::from_ne_bytes(registers_lk[ADDR_Z5_PWR]).max(0.0),
                         f32::from_ne_bytes(registers_lk[ADDR_Z6_PWR]).max(0.0),
                     )
-                } else {
+                } else if poll_pid.saturating_duration_since(now).is_zero() {
+                    registers_lk[ADDR_Z1_PWR] = pwr_z1_mean.to_ne_bytes();
+                    registers_lk[ADDR_Z2_PWR] = pwr_z2_mean.to_ne_bytes();
+                    registers_lk[ADDR_Z3_PWR] = pwr_z3_mean.to_ne_bytes();
+                    registers_lk[ADDR_Z4_PWR] = pwr_z4_mean.to_ne_bytes();
+                    registers_lk[ADDR_Z5_PWR] = pwr_z5_mean.to_ne_bytes();
+                    registers_lk[ADDR_Z6_PWR] = pwr_z6_mean.to_ne_bytes();
+
+                    poll_pid = now.checked_add(Duration::from_millis(POLL_PID_MS)).unwrap();
+
                     (
                         pid_z1.next_control_output(t1_c).output.max(0.0),
                         pid_z2.next_control_output(t2_c).output.max(0.0),
@@ -426,6 +448,15 @@ fn main() {
                         pid_z4.next_control_output(t4_c).output.max(0.0),
                         pid_z5.next_control_output(t5_c).output.max(0.0),
                         pid_z6.next_control_output(t6_c).output.max(0.0),
+                    )
+                } else {
+                    (
+                        pwr_z1,
+                        pwr_z2,
+                        pwr_z3,
+                        pwr_z4,
+                        pwr_z5,
+                        pwr_z6,
                     )
                 };
 
@@ -442,17 +473,6 @@ fn main() {
             let cur_total_a = cur_ideal_a + motor_line_a.min(0.0);
 
             let cur_multiplier = 1.0_f32.min(CUR_MAX_A / cur_total_a);
-
-            registers_lk[ADDR_Z1_PWR] = pwr_z1.to_ne_bytes();
-            registers_lk[ADDR_Z2_PWR] = pwr_z2.to_ne_bytes();
-            registers_lk[ADDR_Z3_PWR] = pwr_z3.to_ne_bytes();
-            registers_lk[ADDR_Z4_PWR] = pwr_z4.to_ne_bytes();
-            registers_lk[ADDR_Z5_PWR] = pwr_z5.to_ne_bytes();
-            registers_lk[ADDR_Z6_PWR] = pwr_z6.to_ne_bytes();
-
-            registers_lk[ADDR_THERMO_PWR_W] = (cur_ideal_a * cur_multiplier * line_v).to_ne_bytes();
-
-            drop(registers_lk);
 
             let pwr_z1 = pwr_z1 * cur_multiplier;
             let pwr_z2 = pwr_z2 * cur_multiplier;
@@ -482,13 +502,53 @@ fn main() {
             pwr_z5_mean = pwr_z5 * pwr_z5_weight + pwr_z5_mean * (1.0 - pwr_z5_weight);
             pwr_z6_mean = pwr_z6 * pwr_z6_weight + pwr_z6_mean * (1.0 - pwr_z6_weight);
 
+            registers_lk[ADDR_THERMO_PWR_W] = (cur_ideal_a * cur_multiplier * line_v).to_ne_bytes();
+
+            drop(registers_lk);
+
             for (instant_on, instant_off, ssr_heat, pwr_mean, pwr_samples) in [
-                (&mut instant_z1_on, &mut instant_z1_off, &mut ssr_z1_heat, &mut pwr_z1_mean, &mut pwr_z1_samples),
-                (&mut instant_z2_on, &mut instant_z2_off, &mut ssr_z2_heat, &mut pwr_z2_mean, &mut pwr_z2_samples),
-                (&mut instant_z3_on, &mut instant_z3_off, &mut ssr_z3_heat, &mut pwr_z3_mean, &mut pwr_z3_samples),
-                (&mut instant_z4_on, &mut instant_z4_off, &mut ssr_z4_heat, &mut pwr_z4_mean, &mut pwr_z4_samples),
-                (&mut instant_z5_on, &mut instant_z5_off, &mut ssr_z5_heat, &mut pwr_z5_mean, &mut pwr_z5_samples),
-                (&mut instant_z6_on, &mut instant_z6_off, &mut ssr_z6_heat, &mut pwr_z6_mean, &mut pwr_z6_samples),
+                (
+                    &mut instant_z1_on,
+                    &mut instant_z1_off,
+                    &mut ssr_z1_heat,
+                    &mut pwr_z1_mean,
+                    &mut pwr_z1_samples,
+                ),
+                (
+                    &mut instant_z2_on,
+                    &mut instant_z2_off,
+                    &mut ssr_z2_heat,
+                    &mut pwr_z2_mean,
+                    &mut pwr_z2_samples,
+                ),
+                (
+                    &mut instant_z3_on,
+                    &mut instant_z3_off,
+                    &mut ssr_z3_heat,
+                    &mut pwr_z3_mean,
+                    &mut pwr_z3_samples,
+                ),
+                (
+                    &mut instant_z4_on,
+                    &mut instant_z4_off,
+                    &mut ssr_z4_heat,
+                    &mut pwr_z4_mean,
+                    &mut pwr_z4_samples,
+                ),
+                (
+                    &mut instant_z5_on,
+                    &mut instant_z5_off,
+                    &mut ssr_z5_heat,
+                    &mut pwr_z5_mean,
+                    &mut pwr_z5_samples,
+                ),
+                (
+                    &mut instant_z6_on,
+                    &mut instant_z6_off,
+                    &mut ssr_z6_heat,
+                    &mut pwr_z6_mean,
+                    &mut pwr_z6_samples,
+                ),
             ] {
                 if instant_on.saturating_duration_since(now) == Duration::ZERO {
                     let period_ms = *pwr_mean * PWM_PERIOD_MS as f32;

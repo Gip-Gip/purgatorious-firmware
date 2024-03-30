@@ -350,7 +350,7 @@ impl QuantumIII {
 
     #[inline]
     pub fn trip(&mut self) -> Result<(), Error> {
-        // Only trip if we need to, 
+        // Only trip if we need to,
         if self.read_zero_page()?.drive_ok {
             self.elevate_perms()?;
             self.write_param(PARAM_EXTERNAL_TRIP, 1)?;
