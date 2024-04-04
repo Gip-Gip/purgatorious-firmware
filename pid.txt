@@ -1,12 +1,41 @@
 
+**Sample rate is 100ms, therefore make sure your PID poll time is 100ms as well**
+
+## Zone 1
+t175-a51
+kp=2.457e-1
+ki=3.007e-3
+kd=1.407e1
+
+## Zone 5
+
+-p=1.717468e-1 -i=2.298033e-3 -d=1.7477556e1
+
 ## Zone 6
 
-t150-a25 @ 33
-p=1.003e-1
-i=6.832e-8
-d=6.281e-10
-
 t175-a31 @ 5.456
+ku=1.822e-1
+pu=292.7
+
 p=1.204e-1
 i=9.252e-5
 d=9.656e0
+
+kp = ku / dp
+dp = ku / kp
+dp =  1.513
+
+ki = kp / (pu / di)
+ki = kp * di / pu
+ki * pu = kp * di
+di =  2.249e-1
+
+kd = kp * (pu / dd)
+kd = kp * pu / dd
+kd * dd = kp * pu
+dd = (kp * pu) / kd
+
+9.656e0 = 1.204e-1 * (292.7 / dd)
+9.656e0 = 1.204e-1 * 292.7 / di
+9.656e0 * dd = 1.204e-1 * 292.7
+dd = 3.650

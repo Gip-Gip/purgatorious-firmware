@@ -36,7 +36,7 @@ pub const ADDR_I_RANGE_Z6_C: usize = 0x001E;
 
 pub const ADDR_RELOAD_PID: usize = 0x001F;
 pub const ADDR_THERMO_PWR_W: usize = 0x0020;
-pub const ADDR_ENBL_LINEAR_PID: usize = 0x0021;
+pub const ADDR_ENBL_FUNCIONAL_PID: usize = 0x0021;
 pub const ADDR_ENBL_PWR_OVERRIDE: usize = 0x0022;
 
 pub const ADDR_Z1_PWR: usize = 0x0023;

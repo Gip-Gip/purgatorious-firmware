@@ -64,6 +64,7 @@ enum TuningRule {
     NoOvershoot,
     Brewing,
     HighMass,
+    Zone6,
     Marlin,
     Flat,
 }
@@ -79,6 +80,7 @@ impl Into<(f32, f32, f32)> for TuningRule {
             TuningRule::NoOvershoot => (100.0, 40.0, 60.0),
             TuningRule::Brewing => (2.5, 6.0, 380.0),
             TuningRule::HighMass => (1.839, 8.645, 6.349),
+            TuningRule::Zone6 => (1.839, 8.645, 6.349),
             TuningRule::Marlin => (1.7, 0.5, 8.0),
             TuningRule::Flat => (1.0, 1.0, 1.0),
         }
@@ -303,6 +305,10 @@ struct Cli {
     #[arg(short, long, value_name = "noiseband_c")]
     noiseband_c: f32,
 
+    /// Perform genetic fine tuning
+    #[arg(short, long, value_name = "genetic")]
+    genetic: bool,
+
     /// Simply score the provided PID value and don't perform genetic fine tuning
     #[arg(short, long, value_name = "test")]
     test: bool,
@@ -367,7 +373,7 @@ fn main() {
                         TuningRule::Flat,
                     ];
 
-                    println!("");
+                    println!("\nku={}, pu={}", autotuner.ku, autotuner.pu_ms / 1000.0);
 
                     for tuning_rule in tuning_rules {
                         let (kp, ki, kd) = autotuner.get_kpid(tuning_rule);
@@ -387,7 +393,11 @@ fn main() {
         }
     }
 
-    let choice = TuningRule::Marlin;
+    if cli.genetic == false {
+        return;
+    }
+
+    let choice = TuningRule::HighMass;
 
     println!("\n\nPerforming Genetic Fine Tuning using {:?}", choice);
 

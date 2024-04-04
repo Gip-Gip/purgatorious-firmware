@@ -54,60 +54,140 @@ const FAN_ENABLE_C: f32 = 10.0;
 const LOOP_TIME_MS: u64 = 10;
 const POLL_PID_MS: u64 = 100;
 
+struct PidRule {
+    dp: f32,
+    di: f32,
+    dd: f32,
+}
+
+impl PidRule {
+    fn get_pid(&self, ku: f32, pu_s: f32) -> (f32, f32, f32) {
+        let kp = ku / self.dp;
+        let ki = kp / (pu_s / self.di);
+        let kd = kp * (pu_s / self.dd);
+
+        (kp, ki, kd)
+    }
+}
+
 struct LinearEquation {
     a: f32,
     b: f32,
 }
 
 impl LinearEquation {
+    fn from_points(p1: (f32, f32), p2: (f32, f32)) -> Self {
+        let (x1, y1) = p1;
+        let (x2, y2) = p2;
+        let a = (y2-y1) / (x2-x1);
+
+        let b = y1 - a*x1;
+
+        Self {a, b}
+    }
     #[inline]
     fn f(&self, x: f32) -> f32 {
         x * self.a + self.b
     }
 }
 
-// Zone 3:
-// P = (0.125, 123), (0.15, 169)
-//  a = rise/run
-//      = (0.15 - 0.125) / (169 - 123)
-//      = 5.434782e-4
-//  b = y - ax
-//      = 0.125 - 1.630e-3 * 123
-//      = 5.815217e-2
-//
-// I =
+struct LinearProgression {
+    ranges: Vec<(f32, LinearEquation)>,
+}
 
-static LINEAR_P: [LinearEquation; 6] = [
-    LinearEquation { a: 0.0, b: 0.0 },
-    LinearEquation { a: 0.0, b: 0.0 },
-    LinearEquation {
-        a: 5.434782e-4,
-        b: 5.815217e-2,
-    },
-    LinearEquation {
-        a: 5.434782e-4,
-        b: 5.815217e-2,
-    },
-    LinearEquation { a: 0.0, b: 0.0 },
-    LinearEquation { a: 0.0, b: 0.0 },
-];
+impl LinearProgression {
+    fn new(points: &[(f32, f32)]) -> Self {
+        let mut ranges = Vec::with_capacity(points.len() - 1);
 
-static LINEAR_I: [LinearEquation; 6] = [
-    LinearEquation { a: 0.0, b: 0.0 },
-    LinearEquation { a: 0.0, b: 0.0 },
-    LinearEquation { a: 0.0, b: 0.0 },
-    LinearEquation { a: 0.0, b: 0.0 },
-    LinearEquation { a: 0.0, b: 0.0 },
-    LinearEquation { a: 0.0, b: 0.0 },
-];
+        for i in 1..points.len() {
+            let p1 = points[i - 1];
+            let p2 = points[i];
 
-static LINEAR_D: [LinearEquation; 6] = [
-    LinearEquation { a: 0.0, b: 0.0 },
-    LinearEquation { a: 0.0, b: 0.0 },
-    LinearEquation { a: 0.0, b: 0.0 },
-    LinearEquation { a: 0.0, b: 0.0 },
-    LinearEquation { a: 0.0, b: 0.0 },
-    LinearEquation { a: 0.0, b: 0.0 },
+            let (limit, _) = match i == points.len() - 1 {
+                true => (f32::INFINITY, 0.0),
+                false => p2,
+            };
+
+            let equation = LinearEquation::from_points(p1, p2);
+
+            ranges.push((limit, equation));
+        }
+
+        Self {
+            ranges
+        }
+    }
+
+    fn f(&self, x: f32) -> f32 {
+        for (limit, equation) in &self.ranges {
+            if x < *limit {
+                return equation.f(x);
+            }
+        }
+
+        return f32::NAN;
+    }
+}
+
+fn pid_k1(temp_ambient: f32) -> (f32, f32, f32) {
+    (0.0, 0.0, 0.0)
+}
+
+
+fn pid_k2(temp_ambient: f32) -> (f32, f32, f32) {
+    (0.0, 0.0, 0.0)
+}
+
+fn pid_k3(temp_ambient: f32) -> (f32, f32, f32) {
+    (0.0, 0.0, 0.0)
+}
+
+fn pid_k4(temp_ambient: f32) -> (f32, f32, f32) {
+    (0.0, 0.0, 0.0)
+}
+
+fn pid_k5(temp_ambient: f32) -> (f32, f32, f32) {
+    (0.0, 0.0, 0.0)
+}
+
+// Derived from these values:
+// ku=0.155e-1, pu=1053 @ 43 (75-32)
+// ku=2.406e-1, pu=351.5 @ 68 (100-32)
+// ku=2.122e-1, pu=278.5 @ 93 (125-32)
+// ku=1.719e-1, pu=278.2 @ 118 (150-32)
+// ku=1.822e-1, pu=292.7, p=1.204e-1, i=9.252e-5, d=9.656 @ 143 (175-32)
+// ku=1.630e-1, pu=581.3 @ 168 (200-32)
+
+static RULE_Z6: PidRule = PidRule {dp: 1.513, di: 2.249e-1, dd: 3.650};
+
+fn pid_k6(t_delta_c: f32) -> (f32, f32, f32) {
+    let ranges: [(f32, LinearEquation, LinearEquation); 5] = [
+        (68.0, LinearEquation::from_points((43.0, 0.155e-1), (68.0, 2.406e-1)), LinearEquation::from_points((43.0, 1053.0), (68.0, 351.5))),
+        (93.0, LinearEquation::from_points((68.0, 2.406e-1), (93.0, 2.122e-1)), LinearEquation::from_points((68.0, 351.5), (93.0, 278.5))),
+        (118.0, LinearEquation::from_points((93.0, 2.122e-1), (118.0, 1.719e-1)), LinearEquation::from_points((93.0, 278.5), (118.0, 278.2))),
+        (143.0, LinearEquation::from_points((118.0, 1.719e-1), (143.0, 1.822e-1)), LinearEquation::from_points((118.0, 278.2), (143.0, 292.7))),
+        (f32::INFINITY, LinearEquation::from_points((143.0, 1.822e-1), (168.0, 1.630e-1)), LinearEquation::from_points((143.0, 292.7), (168.0, 581.3))),
+    ];
+
+    for (limit, ku_f, pu_s_f) in ranges {
+        if t_delta_c < limit {
+            let ku = ku_f.f(t_delta_c);
+            let pu_s = pu_s_f.f(t_delta_c);
+
+            return RULE_Z6.get_pid(ku, pu_s)
+        }
+    }
+
+    (0.0, 0.0, 0.0)
+}
+
+const PID_FUNCS: [fn(f32) -> (f32, f32, f32);6] = [
+    pid_k1,
+    pid_k2,
+    pid_k3,
+    pid_k4,
+    pid_k5,
+    pid_k6,
 ];
 
 fn main() {
@@ -131,7 +211,7 @@ fn main() {
         Arc::new(Mutex::new([[0; URAP_REG_WIDTH]; URAP_REG_COUNT]));
 
     let mut registers_lk = registers.lock().unwrap();
-    registers_lk[ADDR_ENBL_LINEAR_PID] = [1; URAP_REG_WIDTH];
+    registers_lk[ADDR_ENBL_FUNCIONAL_PID] = [1; URAP_REG_WIDTH];
     drop(registers_lk);
 
     UrapSlave::spawn(URAP_THERMO_PATH, registers.clone(), URAP_WRITE_PROTECT).unwrap();
@@ -153,12 +233,12 @@ fn main() {
     let mut pid_z5 = Pid::<f32>::new(0.0, 1.0);
     let mut pid_z6 = Pid::<f32>::new(0.0, 1.0);
 
-    let mut pid_z1_irange_c: f32 = 5.0;
-    let mut pid_z2_irange_c: f32 = 5.0;
-    let mut pid_z3_irange_c: f32 = 5.0;
-    let mut pid_z4_irange_c: f32 = 5.0;
-    let mut pid_z5_irange_c: f32 = 5.0;
-    let mut pid_z6_irange_c: f32 = 5.0;
+    let mut pid_z1_irange_c: f32 = 10.0;
+    let mut pid_z2_irange_c: f32 = 10.0;
+    let mut pid_z3_irange_c: f32 = 10.0;
+    let mut pid_z4_irange_c: f32 = 10.0;
+    let mut pid_z5_irange_c: f32 = 10.0;
+    let mut pid_z6_irange_c: f32 = 10.0;
 
     let mut instant_z1_on = Instant::now();
     let mut instant_z1_off = instant_z1_on.clone();
@@ -313,7 +393,7 @@ fn main() {
                 pid_z6.reset_integral_term();
             }
 
-            if registers_lk[ADDR_ENBL_LINEAR_PID] != [0; URAP_REG_WIDTH] {
+            if registers_lk[ADDR_ENBL_FUNCIONAL_PID] != [0; URAP_REG_WIDTH] {
                 for (i, (pid, addr_p, addr_i, addr_d)) in [
                     (&mut pid_z1, ADDR_P_Z1, ADDR_I_Z1, ADDR_D_Z1),
                     (&mut pid_z2, ADDR_P_Z2, ADDR_I_Z2, ADDR_D_Z2),
@@ -325,9 +405,11 @@ fn main() {
                 .iter_mut()
                 .enumerate()
                 {
-                    pid.p(LINEAR_P[i].f(pid.setpoint - t_amb_c).max(0.0), 1.0);
-                    pid.i(LINEAR_I[i].f(pid.setpoint - t_amb_c).max(0.0), 1.0);
-                    pid.d(LINEAR_D[i].f(pid.setpoint - t_amb_c).max(0.0), 1.0);
+                    let (kp, ki, kd) = PID_FUNCS[i](pid.setpoint - t_amb_c);
+
+                    pid.p(kp.max(0.0), 1.0);
+                    pid.i(ki.max(0.0), 1.0);
+                    pid.d(kd.max(0.0), 1.0);
 
                     registers_lk[*addr_p] = pid.kp.to_ne_bytes();
                     registers_lk[*addr_i] = pid.ki.to_ne_bytes();
@@ -432,13 +514,6 @@ fn main() {
                         f32::from_ne_bytes(registers_lk[ADDR_Z6_PWR]).max(0.0),
                     )
                 } else if poll_pid.saturating_duration_since(now).is_zero() {
-                    registers_lk[ADDR_Z1_PWR] = pwr_z1_mean.to_ne_bytes();
-                    registers_lk[ADDR_Z2_PWR] = pwr_z2_mean.to_ne_bytes();
-                    registers_lk[ADDR_Z3_PWR] = pwr_z3_mean.to_ne_bytes();
-                    registers_lk[ADDR_Z4_PWR] = pwr_z4_mean.to_ne_bytes();
-                    registers_lk[ADDR_Z5_PWR] = pwr_z5_mean.to_ne_bytes();
-                    registers_lk[ADDR_Z6_PWR] = pwr_z6_mean.to_ne_bytes();
-
                     poll_pid = now.checked_add(Duration::from_millis(POLL_PID_MS)).unwrap();
 
                     (
@@ -504,15 +579,15 @@ fn main() {
 
             registers_lk[ADDR_THERMO_PWR_W] = (cur_ideal_a * cur_multiplier * line_v).to_ne_bytes();
 
-            drop(registers_lk);
 
-            for (instant_on, instant_off, ssr_heat, pwr_mean, pwr_samples) in [
+            for (instant_on, instant_off, ssr_heat, pwr_mean, pwr_samples, pwr_addr) in [
                 (
                     &mut instant_z1_on,
                     &mut instant_z1_off,
                     &mut ssr_z1_heat,
                     &mut pwr_z1_mean,
                     &mut pwr_z1_samples,
+                    ADDR_Z1_PWR,
                 ),
                 (
                     &mut instant_z2_on,
@@ -520,6 +595,7 @@ fn main() {
                     &mut ssr_z2_heat,
                     &mut pwr_z2_mean,
                     &mut pwr_z2_samples,
+                    ADDR_Z2_PWR,
                 ),
                 (
                     &mut instant_z3_on,
@@ -527,6 +603,7 @@ fn main() {
                     &mut ssr_z3_heat,
                     &mut pwr_z3_mean,
                     &mut pwr_z3_samples,
+                    ADDR_Z3_PWR,
                 ),
                 (
                     &mut instant_z4_on,
@@ -534,6 +611,7 @@ fn main() {
                     &mut ssr_z4_heat,
                     &mut pwr_z4_mean,
                     &mut pwr_z4_samples,
+                    ADDR_Z4_PWR,
                 ),
                 (
                     &mut instant_z5_on,
@@ -541,6 +619,7 @@ fn main() {
                     &mut ssr_z5_heat,
                     &mut pwr_z5_mean,
                     &mut pwr_z5_samples,
+                    ADDR_Z5_PWR,
                 ),
                 (
                     &mut instant_z6_on,
@@ -548,13 +627,11 @@ fn main() {
                     &mut ssr_z6_heat,
                     &mut pwr_z6_mean,
                     &mut pwr_z6_samples,
+                    ADDR_Z6_PWR,
                 ),
             ] {
                 if instant_on.saturating_duration_since(now) == Duration::ZERO {
                     let period_ms = *pwr_mean * PWM_PERIOD_MS as f32;
-
-                    *pwr_mean = 0.0;
-                    *pwr_samples = 0.0;
 
                     *instant_on = now
                         .checked_add(Duration::from_millis(PWM_PERIOD_MS))
@@ -562,6 +639,13 @@ fn main() {
                     *instant_off = now
                         .checked_add(Duration::from_millis(period_ms as u64))
                         .unwrap();
+
+                    if registers_lk[ADDR_ENBL_PWR_OVERRIDE] == [0; URAP_REG_WIDTH] {
+                        registers_lk[pwr_addr] = pwr_mean.to_ne_bytes();
+                    }
+
+                    *pwr_mean = 0.0;
+                    *pwr_samples = 0.0;
 
                     if period_ms > PWM_PERIOD_MIN_MS as f32 {
                         ssr_heat.set_high();
@@ -572,6 +656,7 @@ fn main() {
                     ssr_heat.set_low();
                 }
             }
+            drop(registers_lk);
         }
         // E-Stop Code
         else {

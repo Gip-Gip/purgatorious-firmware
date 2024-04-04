@@ -13,3 +13,4 @@ shared.workspace = true
 i2c.workspace = true
 screw.workspace = true
 watchdog.workspace = true
+lazy_static = "1.4.0"
