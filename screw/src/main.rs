@@ -10,8 +10,8 @@ use std::{
 use q3_backup::{Param, PARAMS};
 use quantumiii::QuantumIII;
 use screw::*;
-use shared::{retry_thrice, sleep_till, URAP_SCREW_PATH, URAP_WATCHDOG_PATH};
-use urap::*;
+use shared::{retry_thrice, sleep_till, URAP_SCREW_PATH, URAP_WATCHDOG_PATH, ADDR_INCHASH};
+use urap::{URAP_REG_WIDTH, usockets::*};
 use watchdog::ADDR_ESTOP;
 
 use crate::q3_backup::ParamD;

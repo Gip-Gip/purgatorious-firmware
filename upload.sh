@@ -1,4 +1,6 @@
 #!/bin/sh
+cross +nightly build --release
+
 export DIR=$CARGO_TARGET_DIR/aarch64*/release
 
 scp $DIR/gui \

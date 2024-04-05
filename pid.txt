@@ -2,10 +2,8 @@
 **Sample rate is 100ms, therefore make sure your PID poll time is 100ms as well**
 
 ## Zone 1
-t175-a51
-kp=2.457e-1
-ki=3.007e-3
-kd=1.407e1
+t175-a34 @ 14.195626085069396
+-p=2.006e-1 -i=4.177e-3 -d=2.244e1
 
 ## Zone 5
 

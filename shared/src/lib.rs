@@ -5,6 +5,7 @@ pub static URAP_THERMO_PATH: &str = "/var/firmware/thermo";
 pub static URAP_GUI_PATH: &str = "/var/firmware/gui";
 pub static URAP_SCREW_PATH: &str = "/var/firmware/screw";
 pub static URAP_WATCHDOG_PATH: &str = "/var/firmware/watchdog";
+pub const ADDR_INCHASH: usize = 0x0000;
 
 #[inline]
 pub fn sleep_till(instant: Instant) {

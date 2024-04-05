@@ -12,4 +12,3 @@ i2c = {version = "0.1.0", path="i2c/"}
 thermo = {version = "0.1.0", path="thermo/"}
 screw = {version = "0.1.0", path="screw/"}
 watchdog = {version = "0.1.0", path="watchdog/"}
-retry = "2.0.0"

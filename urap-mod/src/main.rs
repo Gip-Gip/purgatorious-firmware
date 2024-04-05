@@ -3,7 +3,7 @@
 use std::{thread::sleep, time::Duration};
 
 use clap::{Parser, ValueEnum};
-use urap::UrapMaster;
+use urap::usockets::*;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -61,7 +61,7 @@ fn main() {
         };
 
         println!("{:#04x}<-{}", cli.register, data);
-        urap.write_4u8(cli.register, buf).unwrap();
+        urap.write_4u8(cli.register, &buf).unwrap();
     }
 
     loop {

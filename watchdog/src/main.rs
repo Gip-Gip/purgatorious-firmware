@@ -11,8 +11,8 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use shared::URAP_WATCHDOG_PATH;
-use urap::*;
+use shared::{URAP_WATCHDOG_PATH, ADDR_INCHASH};
+use urap::{URAP_REG_WIDTH, usockets::*};
 use watchdog::*;
 
 static EXECDIR: &str = "/opt/firmware/active";
@@ -100,7 +100,7 @@ fn main() {
     // Check up on everyone every second or so
     loop {
         let mut threads =
-            Vec::<JoinHandle<Result<(), std::io::Error>>>::with_capacity(pipelist.len());
+            Vec::<JoinHandle<Result<(), urap::Error<std::io::Error>>>>::with_capacity(pipelist.len());
 
         for (i, prog) in pipelist.iter().enumerate() {
             let progname = prog.clone();
@@ -115,10 +115,10 @@ fn main() {
                 let inchash = socket.read_u32(ADDR_INCHASH as u16)?;
 
                 if hashlist[i] == inchash {
-                    return Err(std::io::Error::new(
+                    return Err(urap::Error::Io(std::io::Error::new(
                         std::io::ErrorKind::Other,
                         "Process hasn't updated in time!",
-                    ));
+                    )));
                 }
 
                 hashlist[i] = inchash;
@@ -192,7 +192,7 @@ fn main() {
             }
         }
 
-        let threads: Vec<Result<(), std::io::Error>> = threads
+        let threads: Vec<Result<(), urap::Error<std::io::Error>>> = threads
             .into_iter()
             .map(|thread| thread.join().unwrap())
             .collect();

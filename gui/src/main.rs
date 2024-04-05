@@ -16,10 +16,9 @@ use egui_plot::{Line, Plot, PlotBounds, PlotPoints};
 
 use native_dialog::{MessageDialog, MessageType};
 
-use eframe::egui;
 use screw::*;
 use shared::*;
-use urap::*;
+use urap::{URAP_REG_WIDTH, usockets::*};
 
 // Run at 30fps
 const FRAME_TIME_MS: u64 = 1000 / 30;
@@ -160,7 +159,7 @@ fn setup_custom_fonts(ctx: &egui::Context) {
 
     fonts.font_data.insert(
         "my_font".to_owned(),
-        egui::FontData::from_static(include_bytes!("/usr/share/fonts/TTF/FiraCode-Regular.ttf")),
+        egui::FontData::from_static(include_bytes!("../../deps/FiraCode-Regular.ttf")),
     );
 
     fonts

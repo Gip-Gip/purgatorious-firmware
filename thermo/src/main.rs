@@ -14,7 +14,7 @@ use rppal::gpio::Gpio;
 use screw::{ADDR_LINE_A, ADDR_LINE_V};
 use shared::*;
 use thermo::*;
-use urap::*;
+use urap::{URAP_REG_WIDTH, usockets::*};
 
 const GPIO_SSR_Z1_HEAT: u8 = 18;
 const GPIO_SSR_Z2_HEAT: u8 = 27;

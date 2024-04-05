@@ -12,7 +12,7 @@ use rand::thread_rng;
 use rand_distr::{Distribution, Normal};
 use shared::*;
 use thermo::*;
-use urap::UrapMaster;
+use urap::{URAP_REG_WIDTH, usockets::*};
 
 const PEAK_AMPLITUDE_TOLERANCE: f32 = 0.05;
 
