@@ -1,5 +1,4 @@
-//! The job of the watchdog is to start all the other executables and ensure they all
-//! stay healthy
+#![doc = include_str!("../README.md")]
 
 use std::{
     fs::{read_dir, remove_file, File},
@@ -20,23 +19,12 @@ static PIPEDIR: &str = "/var/firmware/";
 static LOGFILE: &str = "/opt/firmware/watchdog";
 
 const MAX_LATENCY_MS: u64 = 1000;
-const STARTUP_DELAY_MS: u64 = 10000;
+const STARTUP_DELAY_MS: u64 = 5000;
 
 fn main() {
-    let mut logfile = File::create(format!(
-        "{}{}.txt",
-        LOGFILE,
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs()
-    ))
-    .unwrap();
-
-    let mut execlist = Vec::<Arc<String>>::new();
-    let mut pipelist = Vec::<Arc<String>>::new();
-    let mut proclist = Vec::<Child>::new();
-    let mut hashlist = Vec::<u32>::new();
+    // # 1: Program Initialization
+    
+    // # 1.1: Initialized URAP Slave
 
     // remove any broken unix sockets
     for pipe in read_dir(PIPEDIR).unwrap() {
@@ -47,7 +35,24 @@ fn main() {
     let registers: Arc<Mutex<[[u8; URAP_REG_WIDTH]; 1]>> =
         Arc::new(Mutex::new([[0; URAP_REG_WIDTH]]));
 
-    UrapSlave::spawn(URAP_WATCHDOG_PATH, registers.clone(), [false]).unwrap();
+    let mut urap_slave = UrapSlave::spawn(URAP_WATCHDOG_PATH, registers.clone(), [false]).unwrap();
+    
+    // ## 1.2: Create Logfile For Watchdog
+    let mut logfile = File::create(format!(
+        "{}{}.txt",
+        LOGFILE,
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+    ))
+    .unwrap();
+
+    // ## 1.3: Start vPLCs
+    let mut execlist = Vec::<Arc<String>>::new();
+    let mut pipelist = Vec::<Arc<String>>::new();
+    let mut proclist = Vec::<Child>::new();
+    let mut hashlist = Vec::<u32>::new();
 
     for prog in read_dir(EXECDIR).unwrap() {
         let prog = prog.unwrap().path();
@@ -94,14 +99,16 @@ fn main() {
 
     let hashlist = Arc::new(Mutex::new(hashlist));
 
-    // Wait for everything to init, should only take 10 seconds at most
+    // ### 1.3.1: Wait for vPLCs to init
     sleep(Duration::from_millis(STARTUP_DELAY_MS));
 
-    // Check up on everyone every second or so
+    // # 2: Execution Loop
     loop {
+        // ## 2.1: Check for frozen vPLCs
         let mut threads =
             Vec::<JoinHandle<Result<(), urap::Error<std::io::Error>>>>::with_capacity(pipelist.len());
 
+        // ### 2.1.1: Spawn threads to check in on vPLCs
         for (i, prog) in pipelist.iter().enumerate() {
             let progname = prog.clone();
 
@@ -127,8 +134,10 @@ fn main() {
             }));
         }
 
+        // ### 2.1.2: Delay to ensure all vPLCs have time to update and respond
         sleep(Duration::from_millis(MAX_LATENCY_MS));
 
+        // ### 2.1.3: Check if the threads have finished
         for (i, thread) in threads.iter().enumerate() {
             if !thread.is_finished() {
                 let mut registers_lk = registers.lock().unwrap();
@@ -192,6 +201,7 @@ fn main() {
             }
         }
 
+        // ### 2.1.4 Check to see if any of the threads threw an error
         let threads: Vec<Result<(), urap::Error<std::io::Error>>> = threads
             .into_iter()
             .map(|thread| thread.join().unwrap())
@@ -262,6 +272,15 @@ fn main() {
                     sleep(Duration::from_millis(STARTUP_DELAY_MS));
                 }
             }
+        }
+
+        // ## 2.2 Check the URAP slave for errors
+        if let Some(e) = urap_slave.pop_error() {
+            let mut registers_lk = registers.lock().unwrap();
+            registers_lk[ADDR_ESTOP as usize] = [1; 4];
+            drop(registers_lk);
+
+            writeln!(logfile, "*FAULT* URAP encountered error {}", e).unwrap();
         }
     }
 }

@@ -12,7 +12,7 @@ use rand::thread_rng;
 use rand_distr::{Distribution, Normal};
 use shared::*;
 use thermo::*;
-use urap::{URAP_REG_WIDTH, usockets::*};
+use urap::usockets::*;
 
 const PEAK_AMPLITUDE_TOLERANCE: f32 = 0.05;
 
@@ -64,7 +64,6 @@ enum TuningRule {
     NoOvershoot,
     Brewing,
     HighMass,
-    Zone6,
     Marlin,
     Flat,
 }
@@ -80,7 +79,6 @@ impl Into<(f32, f32, f32)> for TuningRule {
             TuningRule::NoOvershoot => (100.0, 40.0, 60.0),
             TuningRule::Brewing => (2.5, 6.0, 380.0),
             TuningRule::HighMass => (1.839, 8.645, 6.349),
-            TuningRule::Zone6 => (1.839, 8.645, 6.349),
             TuningRule::Marlin => (1.7, 0.5, 8.0),
             TuningRule::Flat => (1.0, 1.0, 1.0),
         }

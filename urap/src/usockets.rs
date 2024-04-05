@@ -38,6 +38,13 @@ impl UrapSlave {
 
                                 if let Err(e) = result {
                                     errors.push(e);
+                                    // Terminate the connection if there's an error, to prevent
+                                    // either side from hanging
+                                    stream.get_inner_mut().shutdown(Shutdown::Both).unwrap_or_default();
+                                    
+                                    drop(registers);
+                                    drop(errors);
+                                    break;
                                 }
 
                                 drop(registers);
@@ -175,6 +182,10 @@ mod tests {
         assert_eq!(registers[2], 0_i32.to_le_bytes());
 
         drop(registers);
+
+        assert_eq!(urap_master.is_healthy(), false);
+
+        let mut urap_master = UrapMaster::new(SLAVE_PATH).unwrap();
 
         assert_eq!(urap_master.read_f32(0).unwrap(), f32::INFINITY);
         assert_eq!(urap_master.read_u32(1).unwrap(), 42);
