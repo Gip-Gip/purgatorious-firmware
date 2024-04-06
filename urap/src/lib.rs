@@ -146,7 +146,7 @@ where
     }
 }
 
-pub struct UrapSlave<'a, 'b, 'c, IO, const REGCNT: usize>
+pub struct UrapSecondary<'a, 'b, 'c, IO, const REGCNT: usize>
 where
     IO: Read + Write,
 {
@@ -155,7 +155,7 @@ where
     writeprotect: &'c [bool; REGCNT],
 }
 
-impl<'a, 'b, 'c, IO, const REGCNT: usize> UrapSlave<'a, 'b, 'c, IO, REGCNT>
+impl<'a, 'b, 'c, IO, const REGCNT: usize> UrapSecondary<'a, 'b, 'c, IO, REGCNT>
 where
     IO: Read + Write,
 {
@@ -259,14 +259,14 @@ where
     }
 }
 
-pub struct UrapMaster<'a, IO>
+pub struct UrapPrimary<'a, IO>
 where
     IO: Read + Write,
 {
     io: &'a mut IO,
 }
 
-impl<'a, IO> UrapMaster<'a, IO>
+impl<'a, IO> UrapPrimary<'a, IO>
 where
     IO: Read + Write,
 {

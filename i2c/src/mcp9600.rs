@@ -15,7 +15,7 @@ impl<'a> Mcp9600<'a> {
     pub fn new(i2c: &'a mut I2c, addr: u8) -> Result<Self, I2CError> {
         let thermocouple = Self { i2c };
 
-        thermocouple.i2c.set_slave_address(addr as u16)?;
+        thermocouple.i2c.set_secondary_address(addr as u16)?;
 
         Ok(thermocouple)
     }

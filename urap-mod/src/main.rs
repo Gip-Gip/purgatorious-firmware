@@ -37,7 +37,7 @@ enum UrapTypes {
 fn main() {
     let cli = Cli::parse();
 
-    let mut urap = UrapMaster::new(&cli.socket).unwrap();
+    let mut urap = UrapPrimary::new(&cli.socket).unwrap();
 
     if let Some(data) = cli.write {
         let data_str = match cli.type_ {

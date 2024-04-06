@@ -44,12 +44,12 @@ const CAL_RELAY_PIN: u8 = 21;
 const MAX_TEMP_C: f32 = 250.0;
 
 fn main() {
-    let mut urap_watchdog = UrapMaster::new(URAP_WATCHDOG_PATH).unwrap();
+    let mut urap_watchdog = UrapPrimary::new(URAP_WATCHDOG_PATH).unwrap();
 
     let registers: Arc<Mutex<[[u8; URAP_REG_WIDTH]; URAP_REG_COUNT]>> =
         Arc::new(Mutex::new([[0; URAP_REG_WIDTH]; URAP_REG_COUNT]));
 
-    UrapSlave::spawn(SOCKETPATH, registers.clone(), [true; URAP_REG_COUNT]).unwrap();
+    UrapSecondary::spawn(SOCKETPATH, registers.clone(), [true; URAP_REG_COUNT]).unwrap();
 
     // Calibration relay gpio
     let gpio = Gpio::new().unwrap();
@@ -159,34 +159,34 @@ fn main() {
         let mut registers = registers.lock().unwrap();
 
         // Increment the inchash
-        let inchash = u32::from_ne_bytes(registers[ADDR_INCHASH]) + 1;
-        registers[ADDR_INCHASH] = inchash.to_ne_bytes();
+        let inchash = u32::from_ne_bytes(registers[ADDR_INCHASH as usize]) + 1;
+        registers[ADDR_INCHASH as usize] = inchash.to_ne_bytes();
 
         // Transfer all the temperatures to the registers
-        registers[ADDR_T1_C] = t1_c.to_ne_bytes();
-        registers[ADDR_T2_C] = t2_c.to_ne_bytes();
-        registers[ADDR_T3_C] = t3_c.to_ne_bytes();
-        registers[ADDR_T4_C] = t4_c.to_ne_bytes();
-        registers[ADDR_T5_C] = t5_c.to_ne_bytes();
-        registers[ADDR_T6_C] = t6_c.to_ne_bytes();
-        registers[ADDR_T7_C] = t7_c.to_ne_bytes();
-        registers[ADDR_TA1_C] = ta1_c.to_ne_bytes();
-        registers[ADDR_TA2_C] = ta2_c.to_ne_bytes();
-        registers[ADDR_TA3_C] = ta3_c.to_ne_bytes();
-        registers[ADDR_TA4_C] = ta4_c.to_ne_bytes();
-        registers[ADDR_TA5_C] = ta5_c.to_ne_bytes();
-        registers[ADDR_TA6_C] = ta6_c.to_ne_bytes();
-        registers[ADDR_TA7_C] = ta7_c.to_ne_bytes();
+        registers[ADDR_T1_C as usize] = t1_c.to_ne_bytes();
+        registers[ADDR_T2_C as usize] = t2_c.to_ne_bytes();
+        registers[ADDR_T3_C as usize] = t3_c.to_ne_bytes();
+        registers[ADDR_T4_C as usize] = t4_c.to_ne_bytes();
+        registers[ADDR_T5_C as usize] = t5_c.to_ne_bytes();
+        registers[ADDR_T6_C as usize] = t6_c.to_ne_bytes();
+        registers[ADDR_T7_C as usize] = t7_c.to_ne_bytes();
+        registers[ADDR_TA1_C as usize] = ta1_c.to_ne_bytes();
+        registers[ADDR_TA2_C as usize] = ta2_c.to_ne_bytes();
+        registers[ADDR_TA3_C as usize] = ta3_c.to_ne_bytes();
+        registers[ADDR_TA4_C as usize] = ta4_c.to_ne_bytes();
+        registers[ADDR_TA5_C as usize] = ta5_c.to_ne_bytes();
+        registers[ADDR_TA6_C as usize] = ta6_c.to_ne_bytes();
+        registers[ADDR_TA7_C as usize] = ta7_c.to_ne_bytes();
 
         // Ambient temperature is the average of all the ambient temperatures
-        registers[ADDR_AMBIENT_C] =
+        registers[ADDR_AMBIENT_C as usize] =
             ((ta1_c + ta2_c + ta3_c + ta4_c + ta5_c + ta6_c + ta7_c) / 7.0).to_ne_bytes();
 
-        registers[ADDR_BARREL_KPA] = barrel_kpa.to_ne_bytes();
+        registers[ADDR_BARREL_KPA as usize] = barrel_kpa.to_ne_bytes();
 
         // Poll thermocouples
 
-        let thermos: [(&mut Instant, u8, &mut f32, &mut f32); 7] = [
+        let thermos: [(&mut Instant, u8, &mut f32, &mut f32); 7 as usize] = [
             (&mut poll_tc1, I2CADDR_TC1, &mut t1_c, &mut ta1_c),
             (&mut poll_tc2, I2CADDR_TC2, &mut t2_c, &mut ta2_c),
             (&mut poll_tc3, I2CADDR_TC3, &mut t3_c, &mut ta3_c),

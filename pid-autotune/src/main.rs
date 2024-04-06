@@ -1,4 +1,4 @@
-//! Derived from https://github.com/hirschmann/pid-autotune/blob/master/autotune.py
+//! Derived from https://github.com/hirschmann/pid-autotune/blob/primary/autotune.py
 
 use clap::{Parser, ValueEnum};
 use pid::Pid;
@@ -325,8 +325,8 @@ struct Cli {
 fn main() {
     let cli = Cli::parse();
 
-    let mut urap_i2c = UrapMaster::new(URAP_I2C_PATH).unwrap();
-    let mut urap_thermo = UrapMaster::new(URAP_THERMO_PATH).unwrap();
+    let mut urap_i2c = UrapPrimary::new(URAP_I2C_PATH).unwrap();
+    let mut urap_thermo = UrapPrimary::new(URAP_THERMO_PATH).unwrap();
 
     let mut autotuner = PIDAutotuner::new(
         cli.setpoint_c,

@@ -67,10 +67,10 @@ fn main() {
 struct MyApp {
     registers: Arc<Mutex<[[u8; URAP_REG_WIDTH]; 1]>>,
     previous_frame_ms: u64,
-    urap_i2c: UrapMaster,
-    urap_thermo: UrapMaster,
-    urap_screw: UrapMaster,
-    urap_watchdog: UrapMaster,
+    urap_i2c: UrapPrimary,
+    urap_thermo: UrapPrimary,
+    urap_screw: UrapPrimary,
+    urap_watchdog: UrapPrimary,
     keypad: bool,
     keypad_submit: bool,
     keypad_str: String,
@@ -105,12 +105,12 @@ enum Zone {
 
 impl Default for MyApp {
     fn default() -> Self {
-        let urap_watchdog = UrapMaster::new(URAP_WATCHDOG_PATH).unwrap();
+        let urap_watchdog = UrapPrimary::new(URAP_WATCHDOG_PATH).unwrap();
 
         let registers: Arc<Mutex<[[u8; URAP_REG_WIDTH]; 1]>> =
             Arc::new(Mutex::new([[0; URAP_REG_WIDTH]]));
 
-        UrapSlave::spawn(URAP_GUI_PATH, registers.clone(), [true]).unwrap();
+        UrapSecondary::spawn(URAP_GUI_PATH, registers.clone(), [true]).unwrap();
         // Wait on the vPLCs to initialize
         let urap_i2c_path = Path::new(URAP_I2C_PATH);
         let urap_thermo_path = Path::new(URAP_THERMO_PATH);
@@ -120,9 +120,9 @@ impl Default for MyApp {
             sleep(Duration::from_secs(1));
         }
 
-        let urap_i2c = UrapMaster::new(URAP_I2C_PATH).unwrap();
-        let urap_thermo = UrapMaster::new(URAP_THERMO_PATH).unwrap();
-        let urap_screw = UrapMaster::new(URAP_SCREW_PATH).unwrap();
+        let urap_i2c = UrapPrimary::new(URAP_I2C_PATH).unwrap();
+        let urap_thermo = UrapPrimary::new(URAP_THERMO_PATH).unwrap();
+        let urap_screw = UrapPrimary::new(URAP_SCREW_PATH).unwrap();
 
         Self {
             registers,
@@ -187,9 +187,9 @@ impl<'a> eframe::App for MyApp {
         // Increment the hash so the watchdog doesn't kill us
         let mut registers = self.registers.lock().unwrap();
 
-        let inchash = u32::from_ne_bytes(registers[ADDR_INCHASH]) + 1;
+        let inchash = u32::from_ne_bytes(registers[ADDR_INCHASH as usize]) + 1;
 
-        registers[ADDR_INCHASH] = inchash.to_ne_bytes();
+        registers[ADDR_INCHASH as usize] = inchash.to_ne_bytes();
 
         drop(registers);
         let (
@@ -228,40 +228,40 @@ impl<'a> eframe::App for MyApp {
         );
 
         let temps: [(&mut f32, u16); 9] = [
-            (&mut t1_c, ADDR_T1_C as u16),
-            (&mut t2_c, ADDR_T2_C as u16),
-            (&mut t3_c, ADDR_T3_C as u16),
-            (&mut t4_c, ADDR_T4_C as u16),
-            (&mut t5_c, ADDR_T5_C as u16),
-            (&mut t6_c, ADDR_T6_C as u16),
-            (&mut t7_c, ADDR_T7_C as u16),
-            (&mut ta_c, ADDR_AMBIENT_C as u16),
-            (&mut barrel_kpa, ADDR_BARREL_KPA as u16),
+            (&mut t1_c, ADDR_T1_C),
+            (&mut t2_c, ADDR_T2_C),
+            (&mut t3_c, ADDR_T3_C),
+            (&mut t4_c, ADDR_T4_C),
+            (&mut t5_c, ADDR_T5_C),
+            (&mut t6_c, ADDR_T6_C),
+            (&mut t7_c, ADDR_T7_C),
+            (&mut ta_c, ADDR_AMBIENT_C),
+            (&mut barrel_kpa, ADDR_BARREL_KPA),
         ];
 
         let thermo_vars: [(&mut f32, u16); 13] = [
-            (&mut ts1_c, ADDR_SET_Z1_C as u16),
-            (&mut ts2_c, ADDR_SET_Z2_C as u16),
-            (&mut ts3_c, ADDR_SET_Z3_C as u16),
-            (&mut ts4_c, ADDR_SET_Z4_C as u16),
-            (&mut ts5_c, ADDR_SET_Z5_C as u16),
-            (&mut ts6_c, ADDR_SET_Z6_C as u16),
-            (&mut thermo_pwr_w, ADDR_THERMO_PWR_W as u16),
-            (&mut pwr_z1, ADDR_Z1_PWR as u16),
-            (&mut pwr_z2, ADDR_Z2_PWR as u16),
-            (&mut pwr_z3, ADDR_Z3_PWR as u16),
-            (&mut pwr_z4, ADDR_Z4_PWR as u16),
-            (&mut pwr_z5, ADDR_Z5_PWR as u16),
-            (&mut pwr_z6, ADDR_Z6_PWR as u16),
+            (&mut ts1_c, ADDR_SET_Z1_C),
+            (&mut ts2_c, ADDR_SET_Z2_C),
+            (&mut ts3_c, ADDR_SET_Z3_C),
+            (&mut ts4_c, ADDR_SET_Z4_C),
+            (&mut ts5_c, ADDR_SET_Z5_C),
+            (&mut ts6_c, ADDR_SET_Z6_C),
+            (&mut thermo_pwr_w, ADDR_THERMO_PWR_W),
+            (&mut pwr_z1, ADDR_Z1_PWR),
+            (&mut pwr_z2, ADDR_Z2_PWR),
+            (&mut pwr_z3, ADDR_Z3_PWR),
+            (&mut pwr_z4, ADDR_Z4_PWR),
+            (&mut pwr_z5, ADDR_Z5_PWR),
+            (&mut pwr_z6, ADDR_Z6_PWR),
         ];
 
         let motor_stats: [(&mut f32, u16); 6] = [
-            (&mut set_screw_rpm, ADDR_SET_SCREW_RPM as u16),
-            (&mut act_screw_rpm, ADDR_ACT_SCREW_RPM as u16),
-            (&mut act_motor_rpm, ADDR_ACT_MOTOR_RPM as u16),
-            (&mut motor_a, ADDR_MOTOR_A as u16),
-            (&mut motor_v, ADDR_MOTOR_V as u16),
-            (&mut line_v, ADDR_LINE_V as u16),
+            (&mut set_screw_rpm, ADDR_SET_SCREW_RPM),
+            (&mut act_screw_rpm, ADDR_ACT_SCREW_RPM),
+            (&mut act_motor_rpm, ADDR_ACT_MOTOR_RPM),
+            (&mut motor_a, ADDR_MOTOR_A),
+            (&mut motor_v, ADDR_MOTOR_V),
+            (&mut line_v, ADDR_LINE_V),
         ];
 
         for (temp, addr) in temps {
@@ -361,11 +361,7 @@ impl<'a> eframe::App for MyApp {
         );
 
         // True if not zero
-        let drive_enabled = self
-            .urap_screw
-            .read_u32(ADDR_DRIVE_ENBL as u16)
-            .unwrap_or(0)
-            > 0;
+        let drive_enabled = self.urap_screw.read_u32(ADDR_DRIVE_ENBL).unwrap_or(0) > 0;
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical(|ui| {
@@ -621,14 +617,14 @@ impl<'a> eframe::App for MyApp {
                             .unwrap_or_default();
 
                         if !self.urap_i2c.is_healthy() {
-                            let urap_i2c = UrapMaster::new(URAP_I2C_PATH);
+                            let urap_i2c = UrapPrimary::new(URAP_I2C_PATH);
 
                             if let Ok(val) = urap_i2c {
                                 self.urap_i2c = val;
                             }
                         }
                         if !self.urap_thermo.is_healthy() {
-                            let urap_thermo = UrapMaster::new(URAP_THERMO_PATH);
+                            let urap_thermo = UrapPrimary::new(URAP_THERMO_PATH);
 
                             if let Ok(val) = urap_thermo {
                                 self.urap_thermo = val;
@@ -636,7 +632,7 @@ impl<'a> eframe::App for MyApp {
                         }
 
                         if !self.urap_screw.is_healthy() {
-                            let urap_screw = UrapMaster::new(URAP_SCREW_PATH);
+                            let urap_screw = UrapPrimary::new(URAP_SCREW_PATH);
 
                             if let Ok(val) = urap_screw {
                                 self.urap_screw = val;
@@ -708,13 +704,13 @@ impl<'a> eframe::App for MyApp {
 
         if self.keypad_submit {
             let zone_addr = match self.keypad_editing {
-                Zone::Z1 => ADDR_SET_Z1_C as u16,
-                Zone::Z2 => ADDR_SET_Z2_C as u16,
-                Zone::Z3 => ADDR_SET_Z3_C as u16,
-                Zone::Z4 => ADDR_SET_Z4_C as u16,
-                Zone::Z5 => ADDR_SET_Z5_C as u16,
-                Zone::Z6 => ADDR_SET_Z6_C as u16,
-                Zone::Screw => ADDR_SET_SCREW_RPM as u16,
+                Zone::Z1 => ADDR_SET_Z1_C,
+                Zone::Z2 => ADDR_SET_Z2_C,
+                Zone::Z3 => ADDR_SET_Z3_C,
+                Zone::Z4 => ADDR_SET_Z4_C,
+                Zone::Z5 => ADDR_SET_Z5_C,
+                Zone::Z6 => ADDR_SET_Z6_C,
+                Zone::Screw => ADDR_SET_SCREW_RPM,
             };
 
             let (urap, min, max) = match self.keypad_editing {

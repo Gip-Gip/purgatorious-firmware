@@ -24,7 +24,7 @@ const STARTUP_DELAY_MS: u64 = 5000;
 fn main() {
     // # 1: Program Initialization
 
-    // # 1.1: Initialized URAP Slave
+    // # 1.1: Initialized URAP Secondary
 
     // remove any broken unix sockets
     for pipe in read_dir(PIPEDIR).unwrap() {
@@ -35,7 +35,8 @@ fn main() {
     let registers: Arc<Mutex<[[u8; URAP_REG_WIDTH]; 1]>> =
         Arc::new(Mutex::new([[0; URAP_REG_WIDTH]]));
 
-    let mut urap_slave = UrapSlave::spawn(URAP_WATCHDOG_PATH, registers.clone(), [false]).unwrap();
+    let mut urap_secondary =
+        UrapSecondary::spawn(URAP_WATCHDOG_PATH, registers.clone(), [false]).unwrap();
 
     // ## 1.2: Create Logfile For Watchdog
     let mut logfile = File::create(format!(
@@ -116,7 +117,7 @@ fn main() {
             let hlclone = hashlist.clone();
 
             threads.push(thread::spawn(move || {
-                let mut socket = UrapMaster::new(&progname)?;
+                let mut socket = UrapPrimary::new(&progname)?;
 
                 let mut hashlist = hlclone.lock().unwrap();
 
@@ -275,8 +276,8 @@ fn main() {
             }
         }
 
-        // ## 2.2 Check the URAP slave for errors
-        if let Some(e) = urap_slave.pop_error() {
+        // ## 2.2 Check the URAP secondary for errors
+        if let Some(e) = urap_secondary.pop_error() {
             let mut registers_lk = registers.lock().unwrap();
             registers_lk[ADDR_ESTOP as usize] = [1; 4];
             drop(registers_lk);

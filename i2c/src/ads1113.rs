@@ -24,7 +24,7 @@ pub struct CalState {
 
 impl<'a> Ads1113<'a> {
     pub fn new(i2c: &'a mut I2c, addr: u8, calstate: &'a mut CalState) -> Result<Self, I2CError> {
-        i2c.set_slave_address(addr as u16)?;
+        i2c.set_secondary_address(addr as u16)?;
 
         Ok(Self { i2c, calstate })
     }
