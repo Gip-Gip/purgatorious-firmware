@@ -14,7 +14,7 @@ use watchdog::ADDR_ESTOP;
 use mcp9600::Mcp9600;
 use rppal::{gpio::Gpio, i2c::I2c};
 use shared::*;
-use urap::{URAP_REG_WIDTH, usockets::*};
+use urap::{usockets::*, URAP_REG_WIDTH};
 
 static SOCKETPATH: &str = "/var/firmware/i2c";
 

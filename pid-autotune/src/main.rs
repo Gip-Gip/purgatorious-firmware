@@ -587,7 +587,7 @@ fn main() {
         });
 
         let (parent_score, parent_pid) = children[0];
-        
+
         ideal_pid = parent_pid;
         ideal_pid.reset_integral_term();
 

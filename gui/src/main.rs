@@ -18,7 +18,7 @@ use native_dialog::{MessageDialog, MessageType};
 
 use screw::*;
 use shared::*;
-use urap::{URAP_REG_WIDTH, usockets::*};
+use urap::{usockets::*, URAP_REG_WIDTH};
 
 // Run at 30fps
 const FRAME_TIME_MS: u64 = 1000 / 30;

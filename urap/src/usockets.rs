@@ -1,10 +1,16 @@
-
-use std::{net::Shutdown, os::unix::net::{UnixListener, UnixStream}, sync::{Arc, Mutex}, thread::{self, JoinHandle}};
-use crate::{Error, StdIo, UrapMaster as UrapMasterProto, UrapSlave as UrapSlaveProto, URAP_REG_WIDTH};
+use crate::{
+    Error, StdIo, UrapMaster as UrapMasterProto, UrapSlave as UrapSlaveProto, URAP_REG_WIDTH,
+};
+use std::{
+    net::Shutdown,
+    os::unix::net::{UnixListener, UnixStream},
+    sync::{Arc, Mutex},
+    thread::{self, JoinHandle},
+};
 
 pub struct UrapSlave {
     pub errors: Arc<Mutex<Vec<Error<std::io::Error>>>>,
-    pub join_handle:JoinHandle<Result<(), std::io::Error>>, 
+    pub join_handle: JoinHandle<Result<(), std::io::Error>>,
 }
 
 impl UrapSlave {
@@ -32,7 +38,8 @@ impl UrapSlave {
                             while stream.get_inner_mut().peek(&mut buffer).unwrap_or(0) != 0 {
                                 let mut registers = regcopy.lock().unwrap();
                                 let mut errors = error_cpy.lock().unwrap();
-                                let mut urap_slave = UrapSlaveProto::new(&mut stream, &mut registers, &writeprotect);
+                                let mut urap_slave =
+                                    UrapSlaveProto::new(&mut stream, &mut registers, &writeprotect);
 
                                 let result = urap_slave.poll();
 
@@ -40,8 +47,11 @@ impl UrapSlave {
                                     errors.push(e);
                                     // Terminate the connection if there's an error, to prevent
                                     // either side from hanging
-                                    stream.get_inner_mut().shutdown(Shutdown::Both).unwrap_or_default();
-                                    
+                                    stream
+                                        .get_inner_mut()
+                                        .shutdown(Shutdown::Both)
+                                        .unwrap_or_default();
+
                                     drop(registers);
                                     drop(errors);
                                     break;
@@ -89,42 +99,46 @@ impl UrapMaster {
     pub fn read_4u8(&mut self, register: u16) -> Result<[u8; 4], Error<std::io::Error>> {
         UrapMasterProto::new(&mut self.socket).read_4u8(register)
     }
-    
+
     #[inline]
     pub fn read_f32(&mut self, register: u16) -> Result<f32, Error<std::io::Error>> {
         UrapMasterProto::new(&mut self.socket).read_f32(register)
     }
-    
+
     #[inline]
     pub fn read_u32(&mut self, register: u16) -> Result<u32, Error<std::io::Error>> {
         UrapMasterProto::new(&mut self.socket).read_u32(register)
     }
-    
+
     #[inline]
     pub fn read_i32(&mut self, register: u16) -> Result<i32, Error<std::io::Error>> {
         UrapMasterProto::new(&mut self.socket).read_i32(register)
     }
 
     #[inline]
-    pub fn write_4u8(&mut self, register: u16, buffer: &[u8; 4]) -> Result<(), Error<std::io::Error>> {
+    pub fn write_4u8(
+        &mut self,
+        register: u16,
+        buffer: &[u8; 4],
+    ) -> Result<(), Error<std::io::Error>> {
         UrapMasterProto::new(&mut self.socket).write_4u8(register, buffer)
     }
-    
+
     #[inline]
     pub fn write_f32(&mut self, register: u16, num: f32) -> Result<(), Error<std::io::Error>> {
         UrapMasterProto::new(&mut self.socket).write_f32(register, num)
     }
-    
+
     #[inline]
     pub fn write_u32(&mut self, register: u16, num: u32) -> Result<(), Error<std::io::Error>> {
         UrapMasterProto::new(&mut self.socket).write_u32(register, num)
     }
-    
+
     #[inline]
     pub fn write_i32(&mut self, register: u16, num: i32) -> Result<(), Error<std::io::Error>> {
         UrapMasterProto::new(&mut self.socket).write_i32(register, num)
     }
-    
+
     #[inline]
     pub fn is_healthy(&mut self) -> bool {
         UrapMasterProto::new(&mut self.socket).is_healthy()
@@ -133,7 +147,10 @@ impl UrapMaster {
 
 impl Drop for UrapMaster {
     fn drop(&mut self) {
-        self.socket.get_inner_mut().shutdown(Shutdown::Both).unwrap_or_default();
+        self.socket
+            .get_inner_mut()
+            .shutdown(Shutdown::Both)
+            .unwrap_or_default();
     }
 }
 
@@ -155,7 +172,8 @@ mod tests {
             remove_file(slave_path).unwrap();
         }
 
-        let mut urap_slave = UrapSlave::spawn(SLAVE_PATH, registers.clone(), [false, false, true]).unwrap();
+        let mut urap_slave =
+            UrapSlave::spawn(SLAVE_PATH, registers.clone(), [false, false, true]).unwrap();
 
         let mut urap_master = UrapMaster::new(SLAVE_PATH).unwrap();
 
@@ -171,8 +189,10 @@ mod tests {
 
         let error = urap_slave.pop_error().unwrap();
         match error {
-            Error::IndexWriteProtected(_) => {},
-            _ => {panic!("Incorrect Error Returned! {}", error)}
+            Error::IndexWriteProtected(_) => {}
+            _ => {
+                panic!("Incorrect Error Returned! {}", error)
+            }
         }
 
         let registers = registers.lock().unwrap();

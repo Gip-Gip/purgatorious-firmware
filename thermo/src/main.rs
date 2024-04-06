@@ -10,26 +10,38 @@ use watchdog::ADDR_ESTOP;
 
 use i2c::*;
 use pid::Pid;
-use rppal::gpio::Gpio;
+use rppal::gpio::{Gpio, OutputPin};
 use screw::{ADDR_LINE_A, ADDR_LINE_V};
 use shared::*;
 use thermo::*;
-use urap::{URAP_REG_WIDTH, usockets::*};
+use urap::{usockets::*, URAP_REG_WIDTH};
 
+/// GPIO pin that controls the heater ssr of Zone 1
 const GPIO_SSR_Z1_HEAT: u8 = 18;
+/// GPIO pin that controls the heater ssr of Zone 2
 const GPIO_SSR_Z2_HEAT: u8 = 27;
+/// GPIO pin that controls the heater ssr of Zone 3
 const GPIO_SSR_Z3_HEAT: u8 = 10;
+/// GPIO pin that controls the heater ssr of Zone 4
 const GPIO_SSR_Z4_HEAT: u8 = 11;
+/// GPIO pin that controls the heater ssr of Zone 5
 const GPIO_SSR_Z5_HEAT: u8 = 6;
+/// GPIO pin that controls the heater ssr of Zone 6
 const GPIO_SSR_Z6_HEAT: u8 = 13;
 
+/// GPIO pin that controls the fan ssr of Zone 6
 const GPIO_SSR_Z1_FAN: u8 = 17;
+/// GPIO pin that controls the fan ssr of Zone 7
 const GPIO_SSR_Z2_FAN: u8 = 22;
+/// GPIO pin that controls the fan ssr of Zone 8
 const GPIO_SSR_Z3_FAN: u8 = 9;
+/// GPIO pin that controls the fan ssr of Zone 9
 const GPIO_SSR_Z4_FAN: u8 = 7;
 
+/// Number of registers the URAP slave has
 const URAP_REG_COUNT: usize = 0x29;
 
+/// Write protect flags of all registers
 const URAP_WRITE_PROTECT: [bool; URAP_REG_COUNT] = [
     true, false, false, false, false, false, false, false, false, false, false, false, false,
     false, false, false, false, false, false, false, false, false, false, false, false, false,
@@ -37,23 +49,41 @@ const URAP_WRITE_PROTECT: [bool; URAP_REG_COUNT] = [
     false, false,
 ];
 
+/// PWM Period of all heaters
 const PWM_PERIOD_MS: u64 = 100 * PWM_PERIOD_MIN_MS;
+/// Shortest PWM period that is legal, equal to two cycles
 const PWM_PERIOD_MIN_MS: u64 = 1000 / 30;
+/// Time stagger of all heaters. Heaters are heated staggered so
+/// they don't all draw power at the same time
 const PWM_PERIOD_STAGGER_MS: u64 = 6000 / 6;
 
+/// Maximum current draw in amps
 const CUR_MAX_A: f32 = 60.0 * 0.8;
+/// Current drawn at full power by Zone 1
 const CUR_Z1_A: f32 = 10.0;
+/// Current drawn at full power by Zone 2
 const CUR_Z2_A: f32 = 15.0;
+/// Current drawn at full power by Zone 3
 const CUR_Z3_A: f32 = 12.5;
+/// Current drawn at full power by Zone 4
 const CUR_Z4_A: f32 = 24.0;
+/// Current drawn at full power by Zone 5
 const CUR_Z5_A: f32 = 6.0;
+/// Current drawn at full power by Zone 6
 const CUR_Z6_A: f32 = 1.6;
 
+/// Temperature below the setpoint to enable the fan, in celcius
 const FAN_ENABLE_C: f32 = 10.0;
+/// Thermocouple noise floor in celcius
+const NOISE_FLOOR_C: f32 = 1.0;
 
+/// Time per loop in ms
 const LOOP_TIME_MS: u64 = 10;
+/// Rate at which the PID is updated in ms
 const POLL_PID_MS: u64 = 100;
 
+/// Constant structure used for calculating new PID values at
+/// different temperatures
 struct PidRule {
     dp: f32,
     di: f32,
@@ -61,6 +91,7 @@ struct PidRule {
 }
 
 impl PidRule {
+    /// Calculate Kpid values with the given parameters, following the rule
     fn get_pid(&self, ku: f32, pu_s: f32) -> (f32, f32, f32) {
         let kp = ku / self.dp;
         let ki = kp / (pu_s / self.di);
@@ -70,6 +101,7 @@ impl PidRule {
     }
 }
 
+/// Linear equation, used to help calculate PID values
 struct LinearEquation {
     a: f32,
     b: f32,
@@ -79,11 +111,11 @@ impl LinearEquation {
     fn from_points(p1: (f32, f32), p2: (f32, f32)) -> Self {
         let (x1, y1) = p1;
         let (x2, y2) = p2;
-        let a = (y2-y1) / (x2-x1);
+        let a = (y2 - y1) / (x2 - x1);
 
-        let b = y1 - a*x1;
+        let b = y1 - a * x1;
 
-        Self {a, b}
+        Self { a, b }
     }
     #[inline]
     fn f(&self, x: f32) -> f32 {
@@ -113,9 +145,7 @@ impl LinearProgression {
             ranges.push((limit, equation));
         }
 
-        Self {
-            ranges
-        }
+        Self { ranges }
     }
 
     fn f(&self, x: f32) -> f32 {
@@ -132,7 +162,6 @@ impl LinearProgression {
 fn pid_k1(temp_ambient: f32) -> (f32, f32, f32) {
     (0.0, 0.0, 0.0)
 }
-
 
 fn pid_k2(temp_ambient: f32) -> (f32, f32, f32) {
     (0.0, 0.0, 0.0)
@@ -158,15 +187,39 @@ fn pid_k5(temp_ambient: f32) -> (f32, f32, f32) {
 // ku=1.822e-1, pu=292.7, p=1.204e-1, i=9.252e-5, d=9.656 @ 143 (175-32)
 // ku=1.630e-1, pu=581.3 @ 168 (200-32)
 
-static RULE_Z6: PidRule = PidRule {dp: 1.513, di: 2.249e-1, dd: 3.650};
+static RULE_Z6: PidRule = PidRule {
+    dp: 1.513,
+    di: 2.249e-1,
+    dd: 3.650,
+};
 
 fn pid_k6(t_delta_c: f32) -> (f32, f32, f32) {
     let ranges: [(f32, LinearEquation, LinearEquation); 5] = [
-        (68.0, LinearEquation::from_points((43.0, 0.155e-1), (68.0, 2.406e-1)), LinearEquation::from_points((43.0, 1053.0), (68.0, 351.5))),
-        (93.0, LinearEquation::from_points((68.0, 2.406e-1), (93.0, 2.122e-1)), LinearEquation::from_points((68.0, 351.5), (93.0, 278.5))),
-        (118.0, LinearEquation::from_points((93.0, 2.122e-1), (118.0, 1.719e-1)), LinearEquation::from_points((93.0, 278.5), (118.0, 278.2))),
-        (143.0, LinearEquation::from_points((118.0, 1.719e-1), (143.0, 1.822e-1)), LinearEquation::from_points((118.0, 278.2), (143.0, 292.7))),
-        (f32::INFINITY, LinearEquation::from_points((143.0, 1.822e-1), (168.0, 1.630e-1)), LinearEquation::from_points((143.0, 292.7), (168.0, 581.3))),
+        (
+            68.0,
+            LinearEquation::from_points((43.0, 0.155e-1), (68.0, 2.406e-1)),
+            LinearEquation::from_points((43.0, 1053.0), (68.0, 351.5)),
+        ),
+        (
+            93.0,
+            LinearEquation::from_points((68.0, 2.406e-1), (93.0, 2.122e-1)),
+            LinearEquation::from_points((68.0, 351.5), (93.0, 278.5)),
+        ),
+        (
+            118.0,
+            LinearEquation::from_points((93.0, 2.122e-1), (118.0, 1.719e-1)),
+            LinearEquation::from_points((93.0, 278.5), (118.0, 278.2)),
+        ),
+        (
+            143.0,
+            LinearEquation::from_points((118.0, 1.719e-1), (143.0, 1.822e-1)),
+            LinearEquation::from_points((118.0, 278.2), (143.0, 292.7)),
+        ),
+        (
+            f32::INFINITY,
+            LinearEquation::from_points((143.0, 1.822e-1), (168.0, 1.630e-1)),
+            LinearEquation::from_points((143.0, 292.7), (168.0, 581.3)),
+        ),
     ];
 
     for (limit, ku_f, pu_s_f) in ranges {
@@ -174,21 +227,14 @@ fn pid_k6(t_delta_c: f32) -> (f32, f32, f32) {
             let ku = ku_f.f(t_delta_c);
             let pu_s = pu_s_f.f(t_delta_c);
 
-            return RULE_Z6.get_pid(ku, pu_s)
+            return RULE_Z6.get_pid(ku, pu_s);
         }
     }
 
     (0.0, 0.0, 0.0)
 }
 
-const PID_FUNCS: [fn(f32) -> (f32, f32, f32);6] = [
-    pid_k1,
-    pid_k2,
-    pid_k3,
-    pid_k4,
-    pid_k5,
-    pid_k6,
-];
+const PID_FUNCS: [fn(f32) -> (f32, f32, f32); 6] = [pid_k1, pid_k2, pid_k3, pid_k4, pid_k5, pid_k6];
 
 fn main() {
     let mut urap_watchdog = UrapMaster::new(URAP_WATCHDOG_PATH).unwrap();
@@ -276,7 +322,7 @@ fn main() {
     let mut pwr_z4_mean: f32 = 0.0;
     let mut pwr_z5_mean: f32 = 0.0;
     let mut pwr_z6_mean: f32 = 0.0;
-    
+
     let mut pwr_z1: f32 = 0.0;
     let mut pwr_z2: f32 = 0.0;
     let mut pwr_z3: f32 = 0.0;
@@ -483,24 +529,20 @@ fn main() {
             }
 
             // Fan Logic
-            match t1_c > pid_z1.setpoint - FAN_ENABLE_C {
-                true => ssr_z1_fan.set_high(),
-                false => ssr_z1_fan.set_low(),
-            }
 
-            match t2_c > pid_z2.setpoint - FAN_ENABLE_C {
-                true => ssr_z2_fan.set_high(),
-                false => ssr_z2_fan.set_low(),
-            }
+            for (temp_c, setpoint_c, ssr_fan) in [
+                (t1_c, pid_z1.setpoint, &mut ssr_z1_fan),
+                (t2_c, pid_z2.setpoint, &mut ssr_z2_fan),
+                (t3_c, pid_z3.setpoint, &mut ssr_z3_fan),
+                (t4_c, pid_z4.setpoint, &mut ssr_z4_fan),
+            ] {
+                if temp_c > (setpoint_c - FAN_ENABLE_C + NOISE_FLOOR_C) {
+                    ssr_fan.set_high();
+                }
 
-            match t3_c > pid_z3.setpoint - FAN_ENABLE_C {
-                true => ssr_z3_fan.set_high(),
-                false => ssr_z3_fan.set_low(),
-            }
-
-            match t4_c > pid_z4.setpoint - FAN_ENABLE_C {
-                true => ssr_z4_fan.set_high(),
-                false => ssr_z4_fan.set_low(),
+                if temp_c < (setpoint_c - FAN_ENABLE_C - NOISE_FLOOR_C) {
+                    ssr_fan.set_low();
+                }
             }
 
             (pwr_z1, pwr_z2, pwr_z3, pwr_z4, pwr_z5, pwr_z6) =
@@ -525,14 +567,7 @@ fn main() {
                         pid_z6.next_control_output(t6_c).output.max(0.0),
                     )
                 } else {
-                    (
-                        pwr_z1,
-                        pwr_z2,
-                        pwr_z3,
-                        pwr_z4,
-                        pwr_z5,
-                        pwr_z6,
-                    )
+                    (pwr_z1, pwr_z2, pwr_z3, pwr_z4, pwr_z5, pwr_z6)
                 };
 
             let cur_ideal_a = {
@@ -578,7 +613,6 @@ fn main() {
             pwr_z6_mean = pwr_z6 * pwr_z6_weight + pwr_z6_mean * (1.0 - pwr_z6_weight);
 
             registers_lk[ADDR_THERMO_PWR_W] = (cur_ideal_a * cur_multiplier * line_v).to_ne_bytes();
-
 
             for (instant_on, instant_off, ssr_heat, pwr_mean, pwr_samples, pwr_addr) in [
                 (

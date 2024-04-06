@@ -10,8 +10,8 @@ use std::{
 use q3_backup::{Param, PARAMS};
 use quantumiii::QuantumIII;
 use screw::*;
-use shared::{retry_thrice, sleep_till, URAP_SCREW_PATH, URAP_WATCHDOG_PATH, ADDR_INCHASH};
-use urap::{URAP_REG_WIDTH, usockets::*};
+use shared::{retry_thrice, sleep_till, ADDR_INCHASH, URAP_SCREW_PATH, URAP_WATCHDOG_PATH};
+use urap::{usockets::*, URAP_REG_WIDTH};
 use watchdog::ADDR_ESTOP;
 
 use crate::q3_backup::ParamD;
@@ -220,6 +220,11 @@ fn main() {
                 _ => {}
             }
 
+            if q3state != Q3States::Okay {
+                urap_watchdog.write_u32(ADDR_ESTOP, 1).unwrap_or_default();
+                continue;
+            }
+
             // Check the estop button
             let estop_depressed = retry_thrice(|| {
                 let r = quantumiii.estop_depressed();
@@ -243,10 +248,6 @@ fn main() {
                 .unwrap();
 
                 q3state = Q3States::Tripped;
-            }
-
-            if q3state != Q3States::Okay {
-                urap_watchdog.write_u32(ADDR_ESTOP, 1).unwrap_or_default();
                 continue;
             }
 

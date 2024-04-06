@@ -10,8 +10,8 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use shared::{URAP_WATCHDOG_PATH, ADDR_INCHASH};
-use urap::{URAP_REG_WIDTH, usockets::*};
+use shared::{ADDR_INCHASH, URAP_WATCHDOG_PATH};
+use urap::{usockets::*, URAP_REG_WIDTH};
 use watchdog::*;
 
 static EXECDIR: &str = "/opt/firmware/active";
@@ -23,7 +23,7 @@ const STARTUP_DELAY_MS: u64 = 5000;
 
 fn main() {
     // # 1: Program Initialization
-    
+
     // # 1.1: Initialized URAP Slave
 
     // remove any broken unix sockets
@@ -36,7 +36,7 @@ fn main() {
         Arc::new(Mutex::new([[0; URAP_REG_WIDTH]]));
 
     let mut urap_slave = UrapSlave::spawn(URAP_WATCHDOG_PATH, registers.clone(), [false]).unwrap();
-    
+
     // ## 1.2: Create Logfile For Watchdog
     let mut logfile = File::create(format!(
         "{}{}.txt",
@@ -105,8 +105,9 @@ fn main() {
     // # 2: Execution Loop
     loop {
         // ## 2.1: Check for frozen vPLCs
-        let mut threads =
-            Vec::<JoinHandle<Result<(), urap::Error<std::io::Error>>>>::with_capacity(pipelist.len());
+        let mut threads = Vec::<JoinHandle<Result<(), urap::Error<std::io::Error>>>>::with_capacity(
+            pipelist.len(),
+        );
 
         // ### 2.1.1: Spawn threads to check in on vPLCs
         for (i, prog) in pipelist.iter().enumerate() {

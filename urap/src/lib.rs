@@ -1,13 +1,12 @@
 #![cfg_attr(not(feature = "std"), no_std)]
-
-#![cfg_attr(feature="usockets", feature(unix_socket_peek))]
+#![cfg_attr(feature = "usockets", feature(unix_socket_peek))]
 #[cfg(feature = "usockets")]
 pub mod usockets;
 
 use core::fmt::Display;
 
-use embedded_io::{ErrorType, Read, ReadExactError, Write};
 use crc::{Algorithm, Crc};
+use embedded_io::{ErrorType, Read, ReadExactError, Write};
 
 pub const URAP_REG_WIDTH: usize = 4;
 pub const URAP_CRC_WIDTH: usize = 1;
@@ -26,7 +25,6 @@ pub static CRC_8F_6: Algorithm<u8> = Algorithm {
     residue: 0x00,
 };
 
-
 pub static ACK: [u8; 1] = [0xAA];
 pub static NAK: [u8; 1] = [0x00];
 
@@ -41,15 +39,29 @@ pub enum Error<E> {
 }
 
 impl<E> Display for Error<E>
-where E: Display {
+where
+    E: Display,
+{
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Error::Io(e) => write!(f, "{}", e),
             Error::Nak => write!(f, "NAK Recieved"),
-            Error::BadCrc(calculated, provided) => write!(f, "Bad Crc, calc'd {:x} provided {:x}", calculated, provided),
-            Error::OutOfBounds(index) => write!(f, "Attempted to access index {}, which is out of bounds", index),
+            Error::BadCrc(calculated, provided) => write!(
+                f,
+                "Bad Crc, calc'd {:x} provided {:x}",
+                calculated, provided
+            ),
+            Error::OutOfBounds(index) => write!(
+                f,
+                "Attempted to access index {}, which is out of bounds",
+                index
+            ),
             Error::IncompletePacket => write!(f, "Incomplete Packet"),
-            Error::IndexWriteProtected(index) => write!(f, "Attempted to write to index {}, which is protected", index),
+            Error::IndexWriteProtected(index) => write!(
+                f,
+                "Attempted to write to index {}, which is protected",
+                index
+            ),
         }
     }
 }
@@ -71,12 +83,16 @@ impl<E> From<ReadExactError<E>> for Error<E> {
 
 #[cfg(feature = "std")]
 pub struct StdIo<IO>
-where IO: std::io::Read + std::io::Write {
+where
+    IO: std::io::Read + std::io::Write,
+{
     io: IO,
 }
 
 impl<IO> StdIo<IO>
-where IO: std::io::Read + std::io::Write {
+where
+    IO: std::io::Read + std::io::Write,
+{
     #[inline]
     pub fn get_inner(&mut self) -> &IO {
         &self.io
@@ -89,7 +105,9 @@ where IO: std::io::Read + std::io::Write {
 }
 
 impl<IO> From<IO> for StdIo<IO>
-where IO: std::io::Read + std::io::Write {
+where
+    IO: std::io::Read + std::io::Write,
+{
     #[inline]
     fn from(value: IO) -> Self {
         Self { io: value }
@@ -97,12 +115,16 @@ where IO: std::io::Read + std::io::Write {
 }
 
 impl<IO> ErrorType for StdIo<IO>
-where IO: std::io::Read + std::io::Write {
+where
+    IO: std::io::Read + std::io::Write,
+{
     type Error = std::io::Error;
 }
 
 impl<IO> Read for StdIo<IO>
-where IO: std::io::Read + std::io::Write {
+where
+    IO: std::io::Read + std::io::Write,
+{
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         self.io.read(buf)
@@ -110,7 +132,9 @@ where IO: std::io::Read + std::io::Write {
 }
 
 impl<IO> Write for StdIo<IO>
-where IO: std::io::Read + std::io::Write {
+where
+    IO: std::io::Read + std::io::Write,
+{
     #[inline]
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         self.io.write(buf)
@@ -123,16 +147,28 @@ where IO: std::io::Read + std::io::Write {
 }
 
 pub struct UrapSlave<'a, 'b, 'c, IO, const REGCNT: usize>
-where IO: Read + Write {
+where
+    IO: Read + Write,
+{
     io: &'a mut IO,
     registers: &'b mut [[u8; URAP_REG_WIDTH]; REGCNT],
     writeprotect: &'c [bool; REGCNT],
 }
 
 impl<'a, 'b, 'c, IO, const REGCNT: usize> UrapSlave<'a, 'b, 'c, IO, REGCNT>
-where IO: Read + Write {
-    pub fn new(io: &'a mut IO, registers: &'b mut [[u8; URAP_REG_WIDTH]; REGCNT], writeprotect: &'c [bool; REGCNT]) -> Self {
-        Self { io, registers, writeprotect }
+where
+    IO: Read + Write,
+{
+    pub fn new(
+        io: &'a mut IO,
+        registers: &'b mut [[u8; URAP_REG_WIDTH]; REGCNT],
+        writeprotect: &'c [bool; REGCNT],
+    ) -> Self {
+        Self {
+            io,
+            registers,
+            writeprotect,
+        }
     }
 
     pub fn poll(&mut self) -> Result<(), Error<IO::Error>> {
@@ -163,7 +199,7 @@ where IO: Read + Write {
             true => {
                 let mut data_buffer: [u8; URAP_REG_WIDTH] = [0; URAP_REG_WIDTH];
                 match self.io.read_exact(&mut data_buffer) {
-                    Ok(_) => { }
+                    Ok(_) => {}
                     Err(e) => {
                         self.clear()?;
                         self.nak()?;
@@ -176,16 +212,15 @@ where IO: Read + Write {
                 let crc_calc = crc_calc.finalize();
 
                 if crc_in[0] != crc_calc {
-                        self.clear()?;
-                        self.nak()?;
-                        return Err(Error::BadCrc(crc_calc, crc_in[0]));
+                    self.clear()?;
+                    self.nak()?;
+                    return Err(Error::BadCrc(crc_calc, crc_in[0]));
                 }
 
                 if !self.writeprotect[register] {
                     registers[register] = data_buffer;
                     self.ack()?;
-                }
-                else {
+                } else {
                     self.nak()?;
                     return Err(Error::IndexWriteProtected(register as u16));
                 }
@@ -193,9 +228,9 @@ where IO: Read + Write {
             false => {
                 let crc_calc = crc_calc.finalize();
                 if crc_in[0] != crc_calc {
-                        self.clear()?;
-                        self.nak()?;
-                        return Err(Error::BadCrc(crc_calc, crc_in[0]));
+                    self.clear()?;
+                    self.nak()?;
+                    return Err(Error::BadCrc(crc_calc, crc_in[0]));
                 }
 
                 let register_val = registers[register].clone();
@@ -204,14 +239,14 @@ where IO: Read + Write {
                 self.ack()?;
                 self.io.write_all(&[out_crc])?;
                 self.io.write_all(&register_val)?;
-            } 
+            }
         }
         Ok(())
     }
 
     fn clear(&mut self) -> Result<(), IO::Error> {
         let mut buffer: [u8; URAP_ADDR_WIDTH] = [0; URAP_ADDR_WIDTH];
-        while self.io.read(&mut buffer).unwrap_or(0) == buffer.len() { }
+        while self.io.read(&mut buffer).unwrap_or(0) == buffer.len() {}
         Ok(())
     }
 
@@ -225,14 +260,18 @@ where IO: Read + Write {
 }
 
 pub struct UrapMaster<'a, IO>
-where IO: Read + Write {
+where
+    IO: Read + Write,
+{
     io: &'a mut IO,
 }
 
 impl<'a, IO> UrapMaster<'a, IO>
-where IO: Read + Write {
+where
+    IO: Read + Write,
+{
     pub fn new(io: &'a mut IO) -> Self {
-        Self{ io }
+        Self { io }
     }
 
     pub fn read_4u8(&mut self, register: u16) -> Result<[u8; 4], Error<IO::Error>> {
@@ -262,7 +301,7 @@ where IO: Read + Write {
             return Err(Error::BadCrc(crc_calc, crc_buf[0]));
         }
 
-        return Ok(buffer)
+        return Ok(buffer);
     }
 
     #[inline]
@@ -274,13 +313,17 @@ where IO: Read + Write {
     pub fn read_u32(&mut self, register: u16) -> Result<u32, Error<IO::Error>> {
         Ok(u32::from_le_bytes(self.read_4u8(register)?))
     }
-    
+
     #[inline]
     pub fn read_i32(&mut self, register: u16) -> Result<i32, Error<IO::Error>> {
         Ok(i32::from_le_bytes(self.read_4u8(register)?))
     }
 
-    pub fn write_4u8(&mut self, register: u16, buffer: &[u8; URAP_REG_WIDTH]) -> Result<(), Error<IO::Error>> {
+    pub fn write_4u8(
+        &mut self,
+        register: u16,
+        buffer: &[u8; URAP_REG_WIDTH],
+    ) -> Result<(), Error<IO::Error>> {
         assert_eq!(register & URAP_WRITE_OR, 0);
         let register = (register | URAP_WRITE_OR).to_le_bytes();
 
@@ -311,12 +354,12 @@ where IO: Read + Write {
     pub fn write_f32(&mut self, register: u16, num: f32) -> Result<(), Error<IO::Error>> {
         self.write_4u8(register, &num.to_le_bytes())
     }
-    
+
     #[inline]
     pub fn write_u32(&mut self, register: u16, num: u32) -> Result<(), Error<IO::Error>> {
         self.write_4u8(register, &num.to_le_bytes())
     }
-    
+
     #[inline]
     pub fn write_i32(&mut self, register: u16, num: i32) -> Result<(), Error<IO::Error>> {
         self.write_4u8(register, &num.to_le_bytes())
