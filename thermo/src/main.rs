@@ -75,6 +75,8 @@ const CUR_Z6_A: f32 = 1.6;
 
 /// Temperature below the setpoint to enable the fan, in celcius
 const FAN_ENABLE_C: f32 = 10.0;
+/// Temperature that the fans are cut off at
+const FAN_CUTOFF_C: f32 = 60.0;
 /// Thermocouple noise floor in celcius
 const NOISE_FLOOR_C: f32 = 1.0;
 
@@ -579,11 +581,11 @@ fn main() {
                 (t3_c, pid_z3.setpoint, &mut ssr_z3_fan),
                 (t4_c, pid_z4.setpoint, &mut ssr_z4_fan),
             ] {
-                if temp_c > (setpoint_c - FAN_ENABLE_C + NOISE_FLOOR_C) {
+                if temp_c > (setpoint_c - FAN_ENABLE_C + NOISE_FLOOR_C) && temp_c > (FAN_CUTOFF_C + NOISE_FLOOR_C) {
                     ssr_fan.set_high();
                 }
 
-                if temp_c < (setpoint_c - FAN_ENABLE_C - NOISE_FLOOR_C) {
+                if temp_c < (setpoint_c - FAN_ENABLE_C - NOISE_FLOOR_C) || temp_c < (FAN_CUTOFF_C - NOISE_FLOOR_C) {
                     ssr_fan.set_low();
                 }
             }
