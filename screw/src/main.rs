@@ -33,10 +33,21 @@ const URAP_WRITE_PROTECT: [bool; URAP_REG_COUNT as usize] = [
 ];
 
 const DELAY_Q3_BOOT_S: u64 = 5;
+const DELAY_MOTOR_FAN_SHUTOFF_S: u64 = 15 * 60;
 
 fn main() {
     let mut urap_watchdog = UrapPrimary::new(URAP_WATCHDOG_PATH).unwrap();
     let mut quantumiii = QuantumIII::new(UART_PATH, Q3_ADDR).unwrap();
+    
+    retry_thrice(|| {
+        let r = quantumiii.set_motor_fan(false);
+        if r.is_err() {
+            quantumiii.fault_reset().unwrap();
+        }
+
+        r
+    })
+    .unwrap();
 
     let registers: Arc<Mutex<[[u8; URAP_REG_WIDTH as usize]; URAP_REG_COUNT as usize]>> = Arc::new(
         Mutex::new([[0; URAP_REG_WIDTH as usize]; URAP_REG_COUNT as usize]),
@@ -61,6 +72,9 @@ fn main() {
     }
 
     let mut q3state = Q3States::Standby;
+
+    let mut motor_fan_shutdown_instant: Option<Instant> = None;
+    let mut motor_fan_state: bool = false;
 
     loop {
         let now = Instant::now();
@@ -293,6 +307,40 @@ fn main() {
             // Luck permitting all queries should take about 157ms (18ms + 22ms + 117ms)
 
             let mut registers_lk = registers.lock().unwrap();
+
+            // Enable cooling fan if drive is enabled 
+            if zeropage.drive_enabled() {
+                retry_thrice(|| {
+                    let r = quantumiii.set_motor_fan(true);
+                    if r.is_err() {
+                        quantumiii.fault_reset().unwrap();
+                    }
+
+                    r
+                })
+                .unwrap();
+                motor_fan_state = true;
+            }
+            else {
+                if motor_fan_state {
+                    motor_fan_shutdown_instant = Some(now.checked_add(Duration::from_secs(DELAY_MOTOR_FAN_SHUTOFF_S)).unwrap());
+                    motor_fan_state = false;
+                }
+                else if let Some(shutoff) = motor_fan_shutdown_instant {
+                    if shutoff.saturating_duration_since(now).is_zero() {
+                        motor_fan_shutdown_instant = None;
+                        retry_thrice(|| {
+                            let r = quantumiii.set_motor_fan(false);
+                            if r.is_err() {
+                                quantumiii.fault_reset().unwrap();
+                            }
+
+                            r
+                        })
+                        .unwrap();
+                    }
+                }
+            }
 
             // Set speed takes time to propogate, wait a second or two before
             // setting our screw's set rpm to the drive's

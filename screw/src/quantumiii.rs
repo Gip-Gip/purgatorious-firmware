@@ -23,6 +23,7 @@ static PARAM_ZERO_PAGE_START: &str = "0001";
 static PARAM_PERMISSIONS: &str = "0100";
 static PARAM_EXTERNAL_TRIP: &str = "1034";
 static PARAM_ESTOP_BUTTON: &str = "1521";
+static PARAM_MOTOR_FAN: &str = "1522";
 static PARAM_RESET: &str = "1035";
 const PARAM_RESET_VAL: i16 = 255;
 
@@ -348,7 +349,6 @@ impl QuantumIII {
         self.write_param(PARAM_PERMISSIONS, 149)
     }
 
-    #[inline]
     pub fn trip(&mut self) -> Result<(), Error> {
         // Only trip if we need to,
         if self.read_zero_page()?.drive_ok {
@@ -360,13 +360,22 @@ impl QuantumIII {
         Ok(())
     }
 
-    #[inline]
-    /// Ensure to not contact the drive for a minimum of 10 seconds after resetting
+    /// Ensure to not contact the drive for a minimum of 5 seconds after resetting
     pub fn reset_drive(&mut self) -> Result<(), Error> {
         self.elevate_perms()?;
         // Do not forget to clear the trip
         self.write_param(PARAM_EXTERNAL_TRIP, 0)?;
         self.write_param(PARAM_RESET, PARAM_RESET_VAL)
         // We will now no longer expect communication from the drive
+    }
+
+    #[inline]
+    pub fn set_motor_fan(&mut self, on: bool) -> Result<(), Error> {
+        let val = match on {
+            true => 1,
+            false => 0,
+        };
+
+        self.write_param(PARAM_MOTOR_FAN, val)
     }
 }
