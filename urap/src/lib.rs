@@ -14,6 +14,7 @@ pub const URAP_ADDR_WIDTH: usize = 2;
 pub const URAP_ACK_WIDTH: usize = 1;
 pub const URAP_WRITE_OR: u16 = 0x8000;
 
+/// CRC Derived from [here](https://users.ece.cmu.edu/~koopman/crc/index.html)
 pub static CRC_8F_6: Algorithm<u8> = Algorithm {
     width: 8,
     poly: 0x9b & 1, // The notes specify that the polynominals imply the 1 bit is set

@@ -5,8 +5,8 @@ they all stay healthy.
 
 ## 1: Program Initialization
 
-### 1.1: Initialize URAP slave
-Remove any broken sockets and start the URAP slave. The slave has one
+### 1.1: Initialize URAP secondary
+Remove any broken sockets and start the URAP secondary. The secondary has one
 register which is used to signal to other vPLCs that an ESTOP is in effect.
 
 ### 1.2: Create logfile for watchdog
@@ -38,6 +38,6 @@ responded yet and must be restarted
 If a thread threw an error, something's wrong and the vPLC must be
 restarted.
 
-#### 2.2: Check the URAP slave for errors
-If the URAP slave has encountered any errors, be sure to log them and
+#### 2.2: Check the URAP secondary for errors
+If the URAP secondary has encountered any errors, be sure to log them and
 sound the alarms.
