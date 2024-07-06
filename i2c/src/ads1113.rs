@@ -9,6 +9,12 @@ const FSO_KPA: f32 = 68_947.57;
 const CAL_FSO_KPA: f32 = 0.8 * FSO_KPA;
 const SAFETY_LIMIT_KPA: f32 = 0.8 * FSO_KPA;
 
+/// Config address
+const ADDR_CFG: u8 = 0x01;
+
+/// Config flags
+const CONFIG: u16 = 0b0_00_0000_0_100_0_0000;
+
 pub struct Ads1113<'a> {
     i2c: &'a mut I2c,
     calstate: &'a mut CalState,
@@ -24,7 +30,7 @@ pub struct CalState {
 
 impl<'a> Ads1113<'a> {
     pub fn new(i2c: &'a mut I2c, addr: u8, calstate: &'a mut CalState) -> Result<Self, I2CError> {
-        i2c.set_secondary_address(addr as u16)?;
+        i2c.set_slave_address(addr as u16)?;
 
         Ok(Self { i2c, calstate })
     }
@@ -45,9 +51,7 @@ impl<'a> Ads1113<'a> {
     }
 
     pub fn init(&mut self) -> Result<(), I2CError> {
-        let config: u16 = 0b0_00_0000_0_100_0_0000;
-
-        self.write_u16(0x01, config)?;
+        self.write_u16(ADDR_CFG, CONFIG)?;
 
         Ok(())
     }

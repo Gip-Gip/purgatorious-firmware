@@ -52,11 +52,11 @@ const URAP_WRITE_PROTECT: [bool; URAP_REG_COUNT] = [
 
 /// PWM Period of all heaters
 const PWM_PERIOD_MS: u64 = 100 * PWM_PERIOD_MIN_MS;
-/// Shortest PWM period that is legal, equal to two cycles
+/// Shortest PWM period allowed with our SSRs, equal to two cycles
 const PWM_PERIOD_MIN_MS: u64 = 1000 / 30;
 /// Time stagger of all heaters. Heaters are heated staggered so
 /// they don't all draw power at the same time
-const PWM_PERIOD_STAGGER_MS: u64 = 6000 / 6;
+const PWM_PERIOD_STAGGER_MS: u64 = PWM_PERIOD_MS / 6;
 
 /// Maximum current draw in amps
 const CUR_MAX_A: f32 = 60.0 * 0.8;
@@ -167,55 +167,106 @@ impl LinearProgression {
     }
 }
 
+static KU_PROG_POINTS_Z1: [(f32, f32); 5] = [
+    (100.0-29.0, 2.2036837e-1),
+    (125.0-32.0, 2.2975750e-1),
+    (150.0-35.0, 2.5202265e-1),
+    (175.0-37.0, 2.5359127e-1),
+    (200.0-40.0, 2.6514316e-1),
+];
+
+static PU_S_PROG_POINTS_Z1: [(f32, f32); 5] = [
+    (100.0-29.0, 387.8200),
+    (125.0-32.0, 709.9025),
+    (150.0-35.0, 712.1970),
+    (175.0-37.0, 557.6140),
+    (200.0-40.0, 457.0730),
+];
+
+static RULE_Z1: PidRule = PidRule {
+    dp: 4.291611,
+    di: 1.428715e4,
+    dd: 4.918557e-1,
+};
+
 /// Used to calculate the Kpid based on temperature delta for Zone 1
-fn pid_k1(t_delta_c: f32) -> (f32, f32, f32) {
-    (0.0, 0.0, 0.0)
+fn pid_z1(t_delta_c: f32) -> (f32, f32, f32) {
+    lazy_static! {
+        static ref KU_PROGRESSION_Z1: LinearProgression = LinearProgression::new(&KU_PROG_POINTS_Z1);
+        static ref PU_S_PROGRESSION_Z1: LinearProgression = LinearProgression::new(&PU_S_PROG_POINTS_Z1);
+    };
+
+    let ku = KU_PROGRESSION_Z1.f(t_delta_c);
+    let pu_s = PU_S_PROGRESSION_Z1.f(t_delta_c);
+
+    RULE_Z1.get_pid(ku, pu_s)
 }
 
+static KU_PROG_POINTS_Z2: [(f32, f32); 5] = [
+    (100.0-35.0, 3.7114674e-1),
+    (125.0-38.0, 3.8927070e-1),
+    (150.0-38.0, 2.8034633e-1),
+    (175.0-36.0, 3.3035403e-1),
+    (200.0-40.0, 2.7591646e-1),
+];
+
+static PU_S_PROG_POINTS_Z2: [(f32, f32); 5] = [
+    (100.0-35.0, 374.7200),
+    (125.0-38.0, 349.8690),
+    (150.0-38.0, 315.6045),
+    (175.0-36.0, 303.7525),
+    (200.0-40.0, 306.3730),
+];
+
+static RULE_Z2: PidRule = PidRule {
+    dp: 3.179031,
+    di: 9.339003e3,
+    dd: 5.883713e-1,
+};
+
 /// Used to calculate the Kpid based on temperature delta for Zone 2
-fn pid_k2(t_delta_c: f32) -> (f32, f32, f32) {
-    (0.0, 0.0, 0.0)
+fn pid_z2(t_delta_c: f32) -> (f32, f32, f32) {
+    lazy_static! {
+        static ref KU_PROGRESSION_Z2: LinearProgression = LinearProgression::new(&KU_PROG_POINTS_Z2);
+        static ref PU_S_PROGRESSION_Z2: LinearProgression = LinearProgression::new(&PU_S_PROG_POINTS_Z2);
+    };
+
+    let ku = KU_PROGRESSION_Z2.f(t_delta_c);
+    let pu_s = PU_S_PROGRESSION_Z2.f(t_delta_c);
+
+    RULE_Z2.get_pid(ku, pu_s)
 }
 
 /// Used to calculate the Kpid based on temperature delta for Zone 3
-fn pid_k3(t_delta_c: f32) -> (f32, f32, f32) {
+fn pid_z3(t_delta_c: f32) -> (f32, f32, f32) {
     (0.0, 0.0, 0.0)
 }
 
 /// Used to calculate the Kpid based on temperature delta for Zone 4
-fn pid_k4(t_delta_c: f32) -> (f32, f32, f32) {
+fn pid_z4(t_delta_c: f32) -> (f32, f32, f32) {
     (0.0, 0.0, 0.0)
 }
 
 /// Used to calculate the Kpid based on temperature delta for Zone 5
-fn pid_k5(t_delta_c: f32) -> (f32, f32, f32) {
+fn pid_z5(t_delta_c: f32) -> (f32, f32, f32) {
     (0.0, 0.0, 0.0)
 }
 
-// Derived from these values:
-// ku=0.155e-1, pu=1053 @   43  (75-32)
-// ku=2.406e-1, pu=351.5 @  68  (100-32)
-// ku=2.122e-1, pu=278.5 @  93  (125-32)
-// ku=1.719e-1, pu=278.2 @  118 (150-32)
-// ku=1.822e-1, pu=292.7, p=1.204e-1, i=9.252e-5, d=9.656 @ 143 (175-32)
-// ku=1.630e-1, pu=581.3 @  168 (200-32)
 
-static KU_PROG_POINTS: [(f32, f32); 6] = [
-    (0.155e-1, 43.0),
-    (2.406e-1, 68.0),
-    (2.122e-1, 93.0),
-    (1.719e-1, 118.0),
-    (1.822e-1, 143.0),
-    (1.630e-1, 168.0),
+static KU_PROG_POINTS_Z6: [(f32, f32); 5] = [
+    (100.0-32.0, 2.406e-1),
+    (125.0-32.0, 2.122e-1),
+    (150.0-32.0, 1.719e-1),
+    (175.0-32.0, 1.822e-1),
+    (200.0-32.0, 1.630e-1),
 ];
 
-static PU_S_PROG_POINTS: [(f32, f32); 6] = [
-    (1053.0, 43.0),
-    (351.5, 68.0),
-    (278.5, 93.0),
-    (278.2, 118.0),
-    (292.7, 143.0),
-    (581.3, 168.0),
+static PU_S_PROG_POINTS_Z6: [(f32, f32); 5] = [
+    (100.0-32.0, 351.5),
+    (125.0-32.0, 278.5),
+    (150.0-32.0, 278.2),
+    (175.0-32.0, 292.7),
+    (200.0-32.0, 581.3),
 ];
 
 static RULE_Z6: PidRule = PidRule {
@@ -225,20 +276,20 @@ static RULE_Z6: PidRule = PidRule {
 };
 
 /// Used to calculate the Kpid based on temperature delta for Zone 6
-fn pid_k6(t_delta_c: f32) -> (f32, f32, f32) {
+fn pid_z6(t_delta_c: f32) -> (f32, f32, f32) {
     lazy_static! {
-        static ref KU_PROGRESSION: LinearProgression = LinearProgression::new(&KU_PROG_POINTS);
-        static ref PU_S_PROGRESSION: LinearProgression = LinearProgression::new(&PU_S_PROG_POINTS);
+        static ref KU_PROGRESSION_Z6: LinearProgression = LinearProgression::new(&KU_PROG_POINTS_Z6);
+        static ref PU_S_PROGRESSION_Z6: LinearProgression = LinearProgression::new(&PU_S_PROG_POINTS_Z6);
     };
 
-    let ku = KU_PROGRESSION.f(t_delta_c);
-    let pu_s = PU_S_PROGRESSION.f(t_delta_c);
+    let ku = KU_PROGRESSION_Z6.f(t_delta_c);
+    let pu_s = PU_S_PROGRESSION_Z6.f(t_delta_c);
 
     RULE_Z6.get_pid(ku, pu_s)
 }
 
 /// Map of all the pid calculation functions
-const PID_FUNCS: [fn(f32) -> (f32, f32, f32); 6] = [pid_k1, pid_k2, pid_k3, pid_k4, pid_k5, pid_k6];
+const PID_FUNCS: [fn(f32) -> (f32, f32, f32); 6] = [pid_z1, pid_z2, pid_z3, pid_z4, pid_z5, pid_z6];
 
 fn main() {
     // # 1: Program Initialization
@@ -360,8 +411,8 @@ fn main() {
         let mut registers_lk = registers.lock().unwrap();
 
         // ## 2.3: Increment the inchash
-        let inchash = u32::from_ne_bytes(registers_lk[ADDR_INCHASH as usize]) + 1;
-        registers_lk[ADDR_INCHASH as usize] = inchash.to_ne_bytes();
+        let inchash = u32::from_le_bytes(registers_lk[ADDR_INCHASH as usize]) + 1;
+        registers_lk[ADDR_INCHASH as usize] = inchash.to_le_bytes();
 
         // ## 2.4a: Peform normal operations if estop is not active
         if urap_watchdog.read_u32(ADDR_ESTOP).unwrap_or(1) == 0 {
@@ -426,12 +477,12 @@ fn main() {
             );
 
             // ### 2.4a.2: Update target temperature from register values
-            pid_z1.setpoint(f32::from_ne_bytes(registers_lk[ADDR_SET_Z1_C as usize]));
-            pid_z2.setpoint(f32::from_ne_bytes(registers_lk[ADDR_SET_Z2_C as usize]));
-            pid_z3.setpoint(f32::from_ne_bytes(registers_lk[ADDR_SET_Z3_C as usize]));
-            pid_z4.setpoint(f32::from_ne_bytes(registers_lk[ADDR_SET_Z4_C as usize]));
-            pid_z5.setpoint(f32::from_ne_bytes(registers_lk[ADDR_SET_Z5_C as usize]));
-            pid_z6.setpoint(f32::from_ne_bytes(registers_lk[ADDR_SET_Z6_C as usize]));
+            pid_z1.setpoint(f32::from_le_bytes(registers_lk[ADDR_SET_Z1_C as usize]));
+            pid_z2.setpoint(f32::from_le_bytes(registers_lk[ADDR_SET_Z2_C as usize]));
+            pid_z3.setpoint(f32::from_le_bytes(registers_lk[ADDR_SET_Z3_C as usize]));
+            pid_z4.setpoint(f32::from_le_bytes(registers_lk[ADDR_SET_Z4_C as usize]));
+            pid_z5.setpoint(f32::from_le_bytes(registers_lk[ADDR_SET_Z5_C as usize]));
+            pid_z6.setpoint(f32::from_le_bytes(registers_lk[ADDR_SET_Z6_C as usize]));
 
             // ### 2.4a.3: Reset/clear integral term if outside of the Ki range
             if (t1_c - pid_z1.setpoint).abs() > pid_z1_irange_c {
@@ -502,9 +553,9 @@ fn main() {
                     pid.i(ki.max(0.0), 1.0);
                     pid.d(kd.max(0.0), 1.0);
 
-                    registers_lk[*addr_p] = pid.kp.to_ne_bytes();
-                    registers_lk[*addr_i] = pid.ki.to_ne_bytes();
-                    registers_lk[*addr_d] = pid.kd.to_ne_bytes();
+                    registers_lk[*addr_p] = pid.kp.to_le_bytes();
+                    registers_lk[*addr_i] = pid.ki.to_le_bytes();
+                    registers_lk[*addr_d] = pid.kd.to_le_bytes();
                 }
             }
 
@@ -562,15 +613,15 @@ fn main() {
                         &mut pid_z6_irange_c,
                     ),
                 ] {
-                    pid.p(f32::from_ne_bytes(registers_lk[addr_p]).max(0.0), 1.0);
-                    pid.i(f32::from_ne_bytes(registers_lk[addr_i]).max(0.0), 1.0);
-                    pid.d(f32::from_ne_bytes(registers_lk[addr_d]).max(0.0), 1.0);
+                    pid.p(f32::from_le_bytes(registers_lk[addr_p]).max(0.0), 1.0);
+                    pid.i(f32::from_le_bytes(registers_lk[addr_i]).max(0.0), 1.0);
+                    pid.d(f32::from_le_bytes(registers_lk[addr_d]).max(0.0), 1.0);
 
-                    *i_range = f32::from_ne_bytes(registers_lk[addr_i_range]);
+                    *i_range = f32::from_le_bytes(registers_lk[addr_i_range]);
 
-                    registers_lk[addr_p] = pid.kp.to_ne_bytes();
-                    registers_lk[addr_i] = pid.ki.to_ne_bytes();
-                    registers_lk[addr_d] = pid.kd.to_ne_bytes();
+                    registers_lk[addr_p] = pid.kp.to_le_bytes();
+                    registers_lk[addr_i] = pid.ki.to_le_bytes();
+                    registers_lk[addr_d] = pid.kd.to_le_bytes();
                 }
             }
 
@@ -594,12 +645,12 @@ fn main() {
             (pwr_z1, pwr_z2, pwr_z3, pwr_z4, pwr_z5, pwr_z6) =
                 if registers_lk[ADDR_ENBL_PWR_OVERRIDE as usize] != [0; URAP_REG_WIDTH] {
                     (
-                        f32::from_ne_bytes(registers_lk[ADDR_Z1_PWR as usize]),
-                        f32::from_ne_bytes(registers_lk[ADDR_Z2_PWR as usize]),
-                        f32::from_ne_bytes(registers_lk[ADDR_Z3_PWR as usize]),
-                        f32::from_ne_bytes(registers_lk[ADDR_Z4_PWR as usize]),
-                        f32::from_ne_bytes(registers_lk[ADDR_Z5_PWR as usize]),
-                        f32::from_ne_bytes(registers_lk[ADDR_Z6_PWR as usize]),
+                        f32::from_le_bytes(registers_lk[ADDR_Z1_PWR as usize]),
+                        f32::from_le_bytes(registers_lk[ADDR_Z2_PWR as usize]),
+                        f32::from_le_bytes(registers_lk[ADDR_Z3_PWR as usize]),
+                        f32::from_le_bytes(registers_lk[ADDR_Z4_PWR as usize]),
+                        f32::from_le_bytes(registers_lk[ADDR_Z5_PWR as usize]),
+                        f32::from_le_bytes(registers_lk[ADDR_Z6_PWR as usize]),
                     )
                 }
                 // ### 2.4a.7b: Otherwise, update power values from PID calcualtions
@@ -640,7 +691,7 @@ fn main() {
             // When the motor is stopped the current reads negative, ignore this.
             let cur_total_a = cur_ideal_a + motor_line_a.min(0.0);
 
-            // #### 2.4a.9.1: Limit power so that total extruder current doesn't
+            // #### 2.4a.9.1 Limit power so that total extruder current doesn't
             // exceed limit
             let cur_multiplier = 1.0_f32.min(CUR_MAX_A / cur_total_a);
 
@@ -650,10 +701,6 @@ fn main() {
             let pwr_z4 = pwr_z4 * cur_multiplier;
             let pwr_z5 = pwr_z5 * cur_multiplier;
             let pwr_z6 = pwr_z6 * cur_multiplier;
-
-            // #### 2.4a.9.2: Write corrected power consumption to register
-            registers_lk[ADDR_THERMO_PWR_W as usize] =
-                (cur_ideal_a * cur_multiplier * line_v).to_ne_bytes();
 
             // ### 2.4a.10: Average out power in between PWM periods
             pwr_z1_samples += 1.0;
@@ -676,6 +723,20 @@ fn main() {
             pwr_z4_mean = pwr_z4 * pwr_z4_weight + pwr_z4_mean * (1.0 - pwr_z4_weight);
             pwr_z5_mean = pwr_z5 * pwr_z5_weight + pwr_z5_mean * (1.0 - pwr_z5_weight);
             pwr_z6_mean = pwr_z6 * pwr_z6_weight + pwr_z6_mean * (1.0 - pwr_z6_weight);
+
+            // #### 2.4a.10.1: Write total average power consumption to register
+            
+            let cur_actual_a = {
+                pwr_z1_mean * CUR_Z1_A
+                    + pwr_z2_mean * CUR_Z2_A
+                    + pwr_z3_mean * CUR_Z3_A
+                    + pwr_z4_mean * CUR_Z4_A
+                    + pwr_z5_mean * CUR_Z5_A
+                    + pwr_z6_mean * CUR_Z6_A
+            };
+
+            registers_lk[ADDR_THERMO_PWR_W as usize] =
+                (cur_actual_a * line_v).to_le_bytes();
 
             // ### 2.4a.11: Control heater PWM
             for (instant_on, instant_off, ssr_heat, pwr_mean, pwr_samples, pwr_addr) in [
@@ -741,7 +802,7 @@ fn main() {
 
                     // ##### 2.4a.11.1.1: If power override is disabled, write average power to power register
                     if registers_lk[ADDR_ENBL_PWR_OVERRIDE as usize] == [0; URAP_REG_WIDTH] {
-                        registers_lk[pwr_addr] = pwr_mean.to_ne_bytes();
+                        registers_lk[pwr_addr] = pwr_mean.to_le_bytes();
                     }
 
                     // ##### 2.4a.11.1.2: Reset power average
@@ -771,19 +832,19 @@ fn main() {
         // ## 2.4b: Otherwise, perform estop functions
         else {
             // ### 2.4b.1: Set target temperature and power registers to zero
-            registers_lk[ADDR_SET_Z1_C as usize] = 0_f32.to_ne_bytes();
-            registers_lk[ADDR_SET_Z2_C as usize] = 0_f32.to_ne_bytes();
-            registers_lk[ADDR_SET_Z3_C as usize] = 0_f32.to_ne_bytes();
-            registers_lk[ADDR_SET_Z4_C as usize] = 0_f32.to_ne_bytes();
-            registers_lk[ADDR_SET_Z5_C as usize] = 0_f32.to_ne_bytes();
-            registers_lk[ADDR_SET_Z6_C as usize] = 0_f32.to_ne_bytes();
+            registers_lk[ADDR_SET_Z1_C as usize] = 0_f32.to_le_bytes();
+            registers_lk[ADDR_SET_Z2_C as usize] = 0_f32.to_le_bytes();
+            registers_lk[ADDR_SET_Z3_C as usize] = 0_f32.to_le_bytes();
+            registers_lk[ADDR_SET_Z4_C as usize] = 0_f32.to_le_bytes();
+            registers_lk[ADDR_SET_Z5_C as usize] = 0_f32.to_le_bytes();
+            registers_lk[ADDR_SET_Z6_C as usize] = 0_f32.to_le_bytes();
 
-            registers_lk[ADDR_Z1_PWR as usize] = 0_f32.to_ne_bytes();
-            registers_lk[ADDR_Z2_PWR as usize] = 0_f32.to_ne_bytes();
-            registers_lk[ADDR_Z3_PWR as usize] = 0_f32.to_ne_bytes();
-            registers_lk[ADDR_Z4_PWR as usize] = 0_f32.to_ne_bytes();
-            registers_lk[ADDR_Z5_PWR as usize] = 0_f32.to_ne_bytes();
-            registers_lk[ADDR_Z6_PWR as usize] = 0_f32.to_ne_bytes();
+            registers_lk[ADDR_Z1_PWR as usize] = 0_f32.to_le_bytes();
+            registers_lk[ADDR_Z2_PWR as usize] = 0_f32.to_le_bytes();
+            registers_lk[ADDR_Z3_PWR as usize] = 0_f32.to_le_bytes();
+            registers_lk[ADDR_Z4_PWR as usize] = 0_f32.to_le_bytes();
+            registers_lk[ADDR_Z5_PWR as usize] = 0_f32.to_le_bytes();
+            registers_lk[ADDR_Z6_PWR as usize] = 0_f32.to_le_bytes();
 
             // ### 2.4b.2: Drop lock on registers so secondary can access them
             drop(registers_lk);

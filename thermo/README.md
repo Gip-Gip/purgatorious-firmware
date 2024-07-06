@@ -44,10 +44,10 @@ go negative
 ##### 2.4a.9.1: Limit power so that total extruder current doesn't exceed limit
 Due to the extruder being operated on a 60 amp residential breaker, ensure that
 the power limit is never reached
-##### 2.4a.9.2: Write corrected power consumption to register
 #### 2.4a.10: Average out power in between PWM periods
 To fight derivative kickback, we simply average out the calcualted power over
 a pwm period
+##### 2.4a.10.1: Write total average power consumption to register
 #### 2.4a.11: Control heater PWM
 ##### 2.4a.11.1a: If start of a new period, calculate on and off duration
 Basically, if power is at 100%, the heater stays on for the whole period. If

@@ -187,9 +187,9 @@ impl<'a> eframe::App for MyApp {
         // Increment the hash so the watchdog doesn't kill us
         let mut registers = self.registers.lock().unwrap();
 
-        let inchash = u32::from_ne_bytes(registers[ADDR_INCHASH as usize]) + 1;
+        let inchash = u32::from_le_bytes(registers[ADDR_INCHASH as usize]) + 1;
 
-        registers[ADDR_INCHASH as usize] = inchash.to_ne_bytes();
+        registers[ADDR_INCHASH as usize] = inchash.to_le_bytes();
 
         drop(registers);
         let (
