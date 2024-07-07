@@ -302,6 +302,9 @@ struct Cli {
     /// The noiseband in c
     #[arg(short, long, value_name = "noiseband_c")]
     noiseband_c: f32,
+    /// Time to wait till scoring starts for genetic tuning, in seconds
+    #[arg(long, value_name = "wait_s")]
+    wait_s: Option<u64>,
 
     /// Perform genetic fine tuning
     #[arg(short, long, value_name = "genetic")]
@@ -534,6 +537,12 @@ fn main() {
             let mut points: Vec<f32> =
                 Vec::with_capacity((sample_length_ms / cli.sample_time_ms) as usize);
 
+            let wait_end = if let Some(secs) = cli.wait_s {
+                Instant::now().checked_add(Duration::from_secs(secs)).unwrap()
+            } else {
+                Instant::now()
+            };
+
             let mut delta_mean: f64 = 0.0;
 
             loop {
@@ -546,7 +555,9 @@ fn main() {
 
                 delta_mean += (temp_c - cli.setpoint_c).abs() as f64 * delta_mean_weight;
 
-                points.push(temp_c);
+                if wait_end.saturating_duration_since(Instant::now()).is_zero() {
+                    points.push(temp_c);
+                }
 
                 if points.len() >= points.capacity() {
                     break;

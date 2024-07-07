@@ -1,6 +1,6 @@
 use crate::{
     Error, StdIo, UrapPrimary as UrapPrimaryProto, UrapSecondary as UrapSecondaryProto,
-    URAP_REG_WIDTH,
+    URAP_DATA_WIDTH,
 };
 use std::{
     net::Shutdown,
@@ -17,7 +17,7 @@ pub struct UrapSecondary {
 impl UrapSecondary {
     pub fn spawn<const REGCNT: usize>(
         address: &str,
-        registers: Arc<Mutex<[[u8; URAP_REG_WIDTH]; REGCNT]>>,
+        registers: Arc<Mutex<[[u8; URAP_DATA_WIDTH]; REGCNT]>>,
         writeprotect: [bool; REGCNT],
     ) -> Result<Self, Error<std::io::Error>> {
         let listener = UnixListener::bind(address)?;
@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn unix_sockets() {
-        let registers = Arc::new(Mutex::new([[0u8; URAP_REG_WIDTH]; 3]));
+        let registers = Arc::new(Mutex::new([[0u8; URAP_DATA_WIDTH]; 3]));
 
         let secondary_path = Path::new(SLAVE_PATH);
 

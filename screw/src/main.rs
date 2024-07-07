@@ -11,7 +11,7 @@ use q3_backup::{Param, PARAMS};
 use quantumiii::QuantumIII;
 use screw::*;
 use shared::{retry_thrice, sleep_till, ADDR_INCHASH, URAP_SCREW_PATH, URAP_WATCHDOG_PATH};
-use urap::{usockets::*, URAP_REG_WIDTH};
+use urap::{usockets::*, URAP_DATA_WIDTH};
 use watchdog::ADDR_ESTOP;
 
 use crate::q3_backup::ParamD;
@@ -49,8 +49,8 @@ fn main() {
     })
     .unwrap();
 
-    let registers: Arc<Mutex<[[u8; URAP_REG_WIDTH as usize]; URAP_REG_COUNT as usize]>> = Arc::new(
-        Mutex::new([[0; URAP_REG_WIDTH as usize]; URAP_REG_COUNT as usize]),
+    let registers: Arc<Mutex<[[u8; URAP_DATA_WIDTH as usize]; URAP_REG_COUNT as usize]>> = Arc::new(
+        Mutex::new([[0; URAP_DATA_WIDTH as usize]; URAP_REG_COUNT as usize]),
     );
 
     UrapSecondary::spawn(URAP_SCREW_PATH, registers.clone(), URAP_WRITE_PROTECT).unwrap();
@@ -87,7 +87,7 @@ fn main() {
         registers_lk[ADDR_INCHASH as usize] = inchash.to_ne_bytes();
 
         // Backup the quantum 3's parameters if requested
-        if registers_lk[ADDR_BACKUP_Q3 as usize] != [0; URAP_REG_WIDTH as usize] {
+        if registers_lk[ADDR_BACKUP_Q3 as usize] != [0; URAP_DATA_WIDTH as usize] {
             q3state = Q3States::Standby;
             urap_watchdog.write_u32(ADDR_ESTOP, 1).unwrap();
 
@@ -148,7 +148,7 @@ fn main() {
         }
 
         // Restore the quantum 3's parameters if requested
-        if registers_lk[ADDR_RESTORE_Q3 as usize] != [0; URAP_REG_WIDTH as usize] {
+        if registers_lk[ADDR_RESTORE_Q3 as usize] != [0; URAP_DATA_WIDTH as usize] {
             q3state = Q3States::Standby;
             urap_watchdog.write_u32(ADDR_ESTOP, 1).unwrap();
 

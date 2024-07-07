@@ -14,7 +14,7 @@ use watchdog::ADDR_ESTOP;
 use mcp9600::Mcp9600;
 use rppal::{gpio::Gpio, i2c::I2c};
 use shared::*;
-use urap::{usockets::*, URAP_REG_WIDTH};
+use urap::{usockets::*, URAP_DATA_WIDTH};
 
 static SOCKETPATH: &str = "/var/firmware/i2c";
 
@@ -46,8 +46,8 @@ const MAX_TEMP_C: f32 = 250.0;
 fn main() {
     let mut urap_watchdog = UrapPrimary::new(URAP_WATCHDOG_PATH).unwrap();
 
-    let registers: Arc<Mutex<[[u8; URAP_REG_WIDTH]; URAP_REG_COUNT]>> =
-        Arc::new(Mutex::new([[0; URAP_REG_WIDTH]; URAP_REG_COUNT]));
+    let registers: Arc<Mutex<[[u8; URAP_DATA_WIDTH]; URAP_REG_COUNT]>> =
+        Arc::new(Mutex::new([[0; URAP_DATA_WIDTH]; URAP_REG_COUNT]));
 
     UrapSecondary::spawn(SOCKETPATH, registers.clone(), [true; URAP_REG_COUNT]).unwrap();
 

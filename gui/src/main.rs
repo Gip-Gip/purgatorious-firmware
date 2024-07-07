@@ -18,7 +18,7 @@ use native_dialog::{MessageDialog, MessageType};
 
 use screw::*;
 use shared::*;
-use urap::{usockets::*, URAP_REG_WIDTH};
+use urap::{usockets::*, URAP_DATA_WIDTH};
 
 // Run at 30fps
 const FRAME_TIME_MS: u64 = 1000 / 30;
@@ -65,7 +65,7 @@ fn main() {
 }
 
 struct MyApp {
-    registers: Arc<Mutex<[[u8; URAP_REG_WIDTH]; 1]>>,
+    registers: Arc<Mutex<[[u8; URAP_DATA_WIDTH]; 1]>>,
     previous_frame_ms: u64,
     urap_i2c: UrapPrimary,
     urap_thermo: UrapPrimary,
@@ -107,8 +107,8 @@ impl Default for MyApp {
     fn default() -> Self {
         let urap_watchdog = UrapPrimary::new(URAP_WATCHDOG_PATH).unwrap();
 
-        let registers: Arc<Mutex<[[u8; URAP_REG_WIDTH]; 1]>> =
-            Arc::new(Mutex::new([[0; URAP_REG_WIDTH]]));
+        let registers: Arc<Mutex<[[u8; URAP_DATA_WIDTH]; 1]>> =
+            Arc::new(Mutex::new([[0; URAP_DATA_WIDTH]]));
 
         UrapSecondary::spawn(URAP_GUI_PATH, registers.clone(), [true]).unwrap();
         // Wait on the vPLCs to initialize

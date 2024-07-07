@@ -11,7 +11,7 @@ use std::{
 };
 
 use shared::{ADDR_INCHASH, URAP_WATCHDOG_PATH};
-use urap::{usockets::*, URAP_REG_WIDTH};
+use urap::{usockets::*, URAP_DATA_WIDTH};
 use watchdog::*;
 
 static EXECDIR: &str = "/opt/firmware/active";
@@ -32,8 +32,8 @@ fn main() {
         remove_file(pipe).unwrap();
     }
 
-    let registers: Arc<Mutex<[[u8; URAP_REG_WIDTH]; 1]>> =
-        Arc::new(Mutex::new([[0; URAP_REG_WIDTH]]));
+    let registers: Arc<Mutex<[[u8; URAP_DATA_WIDTH]; 1]>> =
+        Arc::new(Mutex::new([[0; URAP_DATA_WIDTH]]));
 
     let mut urap_secondary =
         UrapSecondary::spawn(URAP_WATCHDOG_PATH, registers.clone(), [false]).unwrap();

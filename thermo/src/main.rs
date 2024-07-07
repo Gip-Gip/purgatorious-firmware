@@ -15,7 +15,7 @@ use rppal::gpio::Gpio;
 use screw::{ADDR_LINE_A, ADDR_LINE_V};
 use shared::*;
 use thermo::*;
-use urap::{usockets::*, URAP_REG_WIDTH};
+use urap::{usockets::*, URAP_DATA_WIDTH};
 
 /// GPIO pin that controls the heater ssr of Zone 1
 const GPIO_SSR_Z1_HEAT: u8 = 18;
@@ -313,11 +313,11 @@ fn main() {
     let mut ssr_z4_fan = gpio.get(GPIO_SSR_Z4_FAN).unwrap().into_output_low();
 
     // ## 1.3: Initalize URAP secondary
-    let registers: Arc<Mutex<[[u8; URAP_REG_WIDTH]; URAP_REG_COUNT]>> =
-        Arc::new(Mutex::new([[0; URAP_REG_WIDTH]; URAP_REG_COUNT]));
+    let registers: Arc<Mutex<[[u8; URAP_DATA_WIDTH]; URAP_REG_COUNT]>> =
+        Arc::new(Mutex::new([[0; URAP_DATA_WIDTH]; URAP_REG_COUNT]));
 
     let mut registers_lk = registers.lock().unwrap();
-    registers_lk[ADDR_ENBL_FUNCIONAL_PID as usize] = [1; URAP_REG_WIDTH];
+    registers_lk[ADDR_ENBL_FUNCIONAL_PID as usize] = [1; URAP_DATA_WIDTH];
     drop(registers_lk);
 
     UrapSecondary::spawn(URAP_THERMO_PATH, registers.clone(), URAP_WRITE_PROTECT).unwrap();
@@ -505,7 +505,7 @@ fn main() {
             }
 
             // ### 2.4a.4: Update Kpid values if functional pid is enabled
-            if registers_lk[ADDR_ENBL_FUNCIONAL_PID as usize] != [0; URAP_REG_WIDTH] {
+            if registers_lk[ADDR_ENBL_FUNCIONAL_PID as usize] != [0; URAP_DATA_WIDTH] {
                 for (i, (pid, addr_p, addr_i, addr_d)) in [
                     (
                         &mut pid_z1,
@@ -560,8 +560,8 @@ fn main() {
             }
 
             // ### 2.4a.5: Update Kpid values from registers if the reload pid flag is not zero
-            if registers_lk[ADDR_RELOAD_PID as usize] != [0; URAP_REG_WIDTH] {
-                registers_lk[ADDR_RELOAD_PID as usize] = [0; URAP_REG_WIDTH];
+            if registers_lk[ADDR_RELOAD_PID as usize] != [0; URAP_DATA_WIDTH] {
+                registers_lk[ADDR_RELOAD_PID as usize] = [0; URAP_DATA_WIDTH];
 
                 for (pid, addr_p, addr_i, addr_d, addr_i_range, i_range) in [
                     (
@@ -643,7 +643,7 @@ fn main() {
 
             // ### 2.4a.7a: Update power values from registers if power override is not zero
             (pwr_z1, pwr_z2, pwr_z3, pwr_z4, pwr_z5, pwr_z6) =
-                if registers_lk[ADDR_ENBL_PWR_OVERRIDE as usize] != [0; URAP_REG_WIDTH] {
+                if registers_lk[ADDR_ENBL_PWR_OVERRIDE as usize] != [0; URAP_DATA_WIDTH] {
                     (
                         f32::from_le_bytes(registers_lk[ADDR_Z1_PWR as usize]),
                         f32::from_le_bytes(registers_lk[ADDR_Z2_PWR as usize]),
@@ -801,7 +801,7 @@ fn main() {
                         .unwrap();
 
                     // ##### 2.4a.11.1.1: If power override is disabled, write average power to power register
-                    if registers_lk[ADDR_ENBL_PWR_OVERRIDE as usize] == [0; URAP_REG_WIDTH] {
+                    if registers_lk[ADDR_ENBL_PWR_OVERRIDE as usize] == [0; URAP_DATA_WIDTH] {
                         registers_lk[pwr_addr] = pwr_mean.to_le_bytes();
                     }
 
